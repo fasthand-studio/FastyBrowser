@@ -813,5 +813,42 @@ func showSettings(b *Browser) {
 	g.Add(r)
 	page.Add(g)
 	d.Add(page)
+
+	// Open source credits: each row names the project, its licence and a link
+	// to the upstream licence or project page.
+	page = adw.NewPreferencesPage()
+	page.SetTitle("Open Source")
+	page.SetIconName("help-about-symbolic")
+	g = adw.NewPreferencesGroup()
+	g.SetTitle("Open source licenses")
+	g.SetDescription("Fasty is built on the work of these projects.")
+	type credit struct {
+		name, license, url string
+	}
+	credits := []credit{
+		{"Fasty Browser", "MIT", "https://github.com/fasthand-studio/Fasty-Browser/blob/main/LICENSE"},
+		{"Go", "BSD-3-Clause", "https://go.dev/LICENSE"},
+		{"GTK 4", "LGPL-2.1-or-later", "https://www.gtk.org/"},
+		{"libadwaita", "LGPL-2.1-or-later", "https://gitlab.gnome.org/GNOME/libadwaita"},
+		{"WebKitGTK 6.0", "LGPL-2.1-or-later / BSD-3-Clause", "https://webkit.org/licensing/"},
+		{"GStreamer", "LGPL-2.1-or-later", "https://gstreamer.freedesktop.org/"},
+		{"gotk4 bindings", "MPL-2.0", "https://github.com/diamondburned/gotk4"},
+		{"adblock-rust", "MPL-2.0", "https://github.com/brave/adblock-rust/blob/master/LICENSE"},
+		{"serde_json", "MIT OR Apache-2.0", "https://github.com/serde-rs/json"},
+		{"EasyList / EasyPrivacy", "GPL-3.0-or-later OR CC BY-SA 3.0-or-later", "https://easylist.to/pages/licence.html"},
+		{"StevenBlack hosts", "MIT", "https://github.com/StevenBlack/hosts/blob/master/license.txt"},
+	}
+	for _, c := range credits {
+		c := c
+		r := adw.NewActionRow()
+		r.SetTitle(c.name)
+		r.SetSubtitle(c.license)
+		suffixButton(r, "View", "flat", func() {
+			b.openTab(c.url, true, nil, false, "", false)
+		})
+		g.Add(r)
+	}
+	page.Add(g)
+	d.Add(page)
 	d.Present(b)
 }
