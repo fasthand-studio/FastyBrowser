@@ -80,6 +80,7 @@ type Browser struct {
 	bindings    map[binding]func()
 	saving      coreglib.SourceHandle
 	w0          int
+	extButtons  []*gtk.Button
 }
 
 func newBrowser(app *App) *Browser {
@@ -191,6 +192,11 @@ func newBrowser(app *App) *Browser {
 	sp2 := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	sp2.SetHExpand(true)
 	b.sideFoot.Append(sp2)
+	extBtn := gtk.NewButtonFromIconName("application-x-addon-symbolic")
+	extBtn.SetTooltipText("Extensions (Ctrl+Shift+E)")
+	extBtn.AddCSSClass("flat")
+	extBtn.ConnectClicked(func() { showExtensionsPanel(b) })
+	b.sideFoot.Append(extBtn)
 	b.dlButton = gtk.NewButtonFromIconName("folder-download-symbolic")
 	b.dlButton.SetTooltipText("Downloads (Ctrl+Shift+J)")
 	b.dlButton.AddCSSClass("flat")
@@ -265,6 +271,10 @@ func newBrowser(app *App) *Browser {
 	b.layout()
 
 	b.keys()
+	b.app.extensions.b = b
+	b.app.extensions.listeners = append(b.app.extensions.listeners, func() { b.rebuildExtensionButtons() })
+	b.rebuildExtensionButtons()
+	b.setupExtensionDrop()
 	s.Listen(b.settingChanged)
 	app.curtain.Listen(b.veilsChanged)
 	app.downloads.onAdded = append(app.downloads.onAdded, b.downloadAdded)
@@ -413,7 +423,8 @@ func (b *Browser) menuButton() *gtk.MenuButton {
 	section("History", "win.history", "Bookmarks", "win.bookmarks", "Downloads", "win.downloads")
 	section("Reading Mode", "win.reader", "Hide Something…", "win.hide", "What Is Hidden Here", "win.hidden",
 		"Find on Page…", "win.find", "Print…", "win.print", "Web Inspector", "win.inspector")
-	section("Tabs Across the Top / Down the Left", "win.tabs-side", "Fold Sidebar Away", "win.fold",
+	section("Extensions", "win.extensions",
+		"Tabs Across the Top / Down the Left", "win.tabs-side", "Fold Sidebar Away", "win.fold",
 		"Keyboard Shortcuts", "win.shortcuts", "Settings", "win.settings")
 	mb := gtk.NewMenuButton()
 	mb.SetIconName("open-menu-symbolic")
@@ -538,6 +549,9 @@ func (b *Browser) openTab(u string, focus bool, after *Tab, private bool, title 
 	t := newTab(b, u, title, pinned, private)
 	t.opener = after
 	b.insert(t, b.place(after))
+	if x := b.app.extensions; x != nil && x.anyBackground() {
+		x.fire("tabs.onCreated", x.tabInfo(t))
+	}
 	b.strip.rebuild()
 	if focus || b.current == nil {
 		b.selectTab(t)
@@ -617,6 +631,9 @@ func (b *Browser) selectTab(t *Tab) {
 		b.stopPicking()
 	}
 	b.current = t
+	if x := b.app.extensions; x != nil && x.anyBackground() {
+		x.fire("tabs.onActivated", map[string]any{"tabId": t.num, "windowId": 1})
+	}
 	if t.pip != nil {
 		// its page is in the floating window; the tab says so
 		b.stack.SetVisibleChild(t.pip.placeholder)
@@ -691,6 +708,10 @@ func (b *Browser) closeTab(t *Tab) {
 	}
 	if t == nil || t.view == nil {
 		return
+	}
+	b.app.extensions.authTabClosed(t)
+	if x := b.app.extensions; x != nil && x.anyBackground() {
+		x.fire("tabs.onRemoved", t.num, map[string]any{"windowId": 1, "isWindowClosing": false})
 	}
 	// A popup lives in its own window and not in the tab strip. Closing it
 	// (from window.close in the page or from the window's close button)
@@ -1562,6 +1583,7 @@ func (b *Browser) keys() {
 		"fold":        fold,
 		"settings":    func() { showSettings(b) },
 		"shortcuts":   b.showShortcuts,
+		"extensions":  func() { showExtensionsPanel(b) },
 	}
 	for name, fn := range acts {
 		fn := fn
@@ -1633,6 +1655,7 @@ func (b *Browser) keys() {
 		{C | A, gdk.KEY_i}:            b.inspector,
 		{C, gdk.KEY_p}:                b.printPage,
 		{C | S, gdk.KEY_p}:            b.togglePiP,
+		{C | S, gdk.KEY_e}:            func() { showExtensionsPanel(b) },
 		{C | A, gdk.KEY_l}:            func() { showSettings(b) },
 		{C, gdk.KEY_question}:         b.showShortcuts,
 		{C, gdk.KEY_q}:                b.app.quitAll,
@@ -1673,6 +1696,9 @@ func (b *Browser) key(keyval uint, state gdk.ModifierType) bool {
 		fn = b.bindings[binding{mods &^ gdk.ShiftMask, kv}]
 	}
 	if fn == nil {
+		if x := b.app.extensions; x != nil {
+			return x.runCommand(kv, mods)
+		}
 		return false
 	}
 	// Leave text fields their own paste.
@@ -1715,7 +1741,7 @@ func (b *Browser) showShortcuts() {
 		{"Ctrl+Alt+B", "Bookmarks"}, {"Ctrl+Shift+R", "Reading mode"}, {"Ctrl+Shift+H", "Hide something"},
 		{"Ctrl+Shift+U", "What is hidden here"}, {"Ctrl+F", "Find"}, {"Ctrl+D", "Duplicate tab"},
 		{"Ctrl+Shift+C", "Copy address (clean)"}, {"Ctrl+Shift+V", "Paste and go"}, {"Ctrl+Y", "History"},
-		{"Ctrl+Shift+J", "Downloads"}, {"Ctrl+,", "Settings"}, {"Ctrl+R  F5", "Reload"},
+		{"Ctrl+Shift+J", "Downloads"}, {"Ctrl+Shift+E", "Extensions"}, {"Ctrl+,", "Settings"}, {"Ctrl+R  F5", "Reload"},
 		{"Ctrl+Alt+R  Ctrl+F5", "Reload from origin"}, {"Ctrl+ +  −  0", "Zoom"}, {"F11", "Full screen"},
 		{"F12", "Web Inspector"}, {"Esc", "Put away whatever is open"},
 	}

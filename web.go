@@ -459,6 +459,10 @@ func (e *Engine) privateSession() *webkit.NetworkSession {
 }
 
 func (e *Engine) contentManager() *webkit.UserContentManager {
+	return e.contentManagerWithExtensions(nil)
+}
+
+func (e *Engine) contentManagerWithExtensions(ext *ExtensionManager) *webkit.UserContentManager {
 	ucm := webkit.NewUserContentManager()
 	ucm.AddScript(webkit.NewUserScript(e.picker, webkit.UserContentInjectTopFrame,
 		webkit.UserScriptInjectAtDocumentStart, nil, nil))
@@ -466,6 +470,11 @@ func (e *Engine) contentManager() *webkit.UserContentManager {
 	if e.settings.SmoothScrolling {
 		ucm.AddScript(webkit.NewUserScript(e.wheel, webkit.UserContentInjectAllFrames,
 			webkit.UserScriptInjectAtDocumentStart, nil, nil))
+	}
+	// Extension content scripts and store helpers.
+	if ext != nil {
+		ext.InjectExtensions(ucm)
+		ext.injectWebConnect(ucm)
 	}
 	return ucm
 }

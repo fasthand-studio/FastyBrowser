@@ -32,6 +32,11 @@ sudo pacman -S webkitgtk-6.0 gst-plugins-good gst-libav
 
 > `gst-plugins-good` is required — without it, pages with video or audio will crash.
 
+If a YouTube video plays sound but shows no picture after an ad, Fasty already
+demotes hardware video decoders (NVDEC/VA-API/VDPAU) so software decoding takes
+over — GPU compositing stays on. Set `GST_PLUGIN_FEATURE_RANK` yourself to
+override that.
+
 If WebKitGTK 6.0 is not installed, `install.sh` automatically downloads and unpacks a private copy.
 
 ## Features

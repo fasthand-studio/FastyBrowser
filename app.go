@@ -25,6 +25,7 @@ type App struct {
 	engine      *Engine
 	shield      *Shield
 	downloads   *Downloads
+	extensions  *ExtensionManager
 	memory      *gio.MemoryMonitor
 	window      *Browser
 	agentLn     net.Listener
@@ -75,6 +76,7 @@ func (a *App) startup() {
 	a.curtain = loadCurtain()
 	a.engine = newEngine(a.settings)
 	a.shield = newShield(a.settings)
+	a.extensions = newExtensionManager(a.engine)
 	a.downloads = &Downloads{settings: a.settings}
 	a.downloads.watch(a.engine.session)
 	// When the system runs short of memory, tabs in the background give
@@ -121,6 +123,7 @@ func (a *App) activate() {
 		if a.wantPrivate {
 			w.newTab(true)
 		}
+		a.extensions.StartBackgrounds()
 	}
 	w.Present()
 	if script := os.Getenv("FASTY_SELFTEST"); fresh && script != "" {
@@ -159,6 +162,9 @@ func (a *App) flushAll() {
 		return
 	}
 	stopAgent(a.agentLn)
+	if a.extensions != nil {
+		a.extensions.StopBackgrounds()
+	}
 	a.settings.flush()
 	a.history.flush()
 	a.bookmarks.flush()
@@ -187,7 +193,31 @@ func pickRenderer() {
 	}
 }
 
+// pickVideoDecoders steers video decoding to software while leaving WebKit's
+// GPU compositing alone. YouTube changes the video source when an ad ends;
+// hardware decoders (NVDEC, VA-API, VDPAU) can keep playing the new video's
+// audio but stop handing frames to the compositor, leaving a black picture.
+// Rank 0 demotes them below software decoders instead of disabling them, so a
+// codec with no software decoder still plays. A rank set by the user wins.
+func pickVideoDecoders() {
+	if os.Getenv("GST_PLUGIN_FEATURE_RANK") != "" {
+		return
+	}
+	hw := []string{
+		"nvh264dec", "nvh265dec", "nvvp9dec", "nvav1dec", "nvvp8dec",
+		"vaapih264dec", "vaapih264highdec", "vaapih265dec", "vaapivp9dec",
+		"vaapiav1dec", "vaapivp8dec",
+		"vdpauh264dec", "vdpauvp9dec", "vdpauav1dec",
+	}
+	ranks := make([]string, 0, len(hw))
+	for _, f := range hw {
+		ranks = append(ranks, f+":0")
+	}
+	os.Setenv("GST_PLUGIN_FEATURE_RANK", strings.Join(ranks, ","))
+}
+
 func main() {
 	pickRenderer()
+	pickVideoDecoders()
 	os.Exit(newApp().Run(os.Args))
 }

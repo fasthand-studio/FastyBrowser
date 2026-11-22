@@ -752,6 +752,9 @@ func showSettings(b *Browser) {
 	page.Add(g)
 	d.Add(page)
 
+	// Extensions
+	page.Add(extensionSettingsGroup(b))
+
 	// Privacy
 	page = adw.NewPreferencesPage()
 	page.SetTitle("Privacy")

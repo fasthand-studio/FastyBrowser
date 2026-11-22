@@ -42,11 +42,16 @@ type Tab struct {
 	lastSeen float64
 	findWired bool
 	pip      *PiP // its page is in the floating video window
+	num      int  // the id extensions know this tab by
+	win      int  // window id for extension windows (0 for the main window)
 }
 
+var tabSeq int
+
 func newTab(b *Browser, url, title string, pinned, private bool) *Tab {
+	tabSeq++
 	t := &Tab{id: fmt.Sprintf("%08x", rand.Uint32()), b: b, url: url, title: title, pinned: pinned, private: private,
-		lastSeen: now()}
+		lastSeen: now(), num: tabSeq}
 	if url != "" && !private {
 		t.lookupIcon()
 	}
@@ -69,7 +74,7 @@ func (t *Tab) build() *webkit.WebView {
 		return t.view
 	}
 	e := t.b.app.engine
-	t.ucm = e.contentManager()
+	t.ucm = e.contentManagerWithExtensions(t.b.app.extensions)
 	session := e.session
 	if t.private {
 		session = e.privateSession()
@@ -88,11 +93,14 @@ func (t *Tab) wire(view *webkit.WebView) {
 	a := t.b.app
 	t.view = view
 	veilSheets(t.ucm, a.curtain)
+	if a.extensions != nil {
+		a.extensions.InjectExtensionStyles(t.ucm)
+	}
 	a.shield.Tune(t.ucm, hostOf(t.url), true)
 	view.SetZoomLevel(a.zoomFor(t.url))
 	view.SetVExpand(true)
 	view.SetHExpand(true)
-	t.ucm.ConnectScriptMessageReceived(func(v *javascriptcore.Value) { t.onVeil(v.ToJson(0)) })
+	t.ucm.ConnectScriptMessageReceived(func(v *javascriptcore.Value) { t.onMessage(v.ToJson(0)) })
 	view.NotifyProperty("title", func() {
 		if s := view.Title(); s != "" {
 			t.title = s
@@ -142,6 +150,7 @@ func (t *Tab) wire(view *webkit.WebView) {
 			}
 			view.SetZoomLevel(a.zoomFor(t.url))
 		}
+		a.extensions.tabLoad(t, ev)
 		t.changed()
 	})
 	view.ConnectDecidePolicy(t.onPolicy)
@@ -269,6 +278,10 @@ func (t *Tab) onPolicy(decision webkit.PolicyDecisioner, kind webkit.PolicyDecis
 		d := decision.(*webkit.NavigationPolicyDecision)
 		action := d.NavigationAction()
 		uri := action.Request().URI()
+		if t.b.app.extensions.authRedirect(uri) {
+			d.Ignore()
+			return true
+		}
 		sc := scheme(uri)
 		if externalSchemes[sc] {
 			d.Ignore()
@@ -351,6 +364,9 @@ func (t *Tab) onCrash(reason webkit.WebProcessTerminationReason) {
 }
 
 func (t *Tab) onContextMenu(menu *webkit.ContextMenu, hit *webkit.HitTestResult) bool {
+	if x := t.b.app.extensions; x != nil && !isExtURL(t.url) {
+		x.AppendMenus(t, menu, hit)
+	}
 	if !hit.ContextIsLink() {
 		return false
 	}
@@ -370,6 +386,32 @@ func (t *Tab) onContextMenu(menu *webkit.ContextMenu, hit *webkit.HitTestResult)
 	cp.ConnectActivate(func(*glib.Variant) { gdk.DisplayGetDefault().Clipboard().SetText(cleanLink(link)) })
 	menu.Append(webkit.NewContextMenuItemFromGaction(cp, "Copy Clean Link", nil))
 	return false
+}
+
+// onMessage routes incoming script messages to the right handler based on
+// content. WebKit fires the same signal for all registered handlers on a UCM.
+func (t *Tab) onMessage(body string) {
+	var probe struct {
+		Channel string `json:"_ch"`
+	}
+	if json.Unmarshal([]byte(body), &probe) == nil && probe.Channel != "" {
+		switch probe.Channel {
+		case "ext":
+			if t.b.app.extensions != nil {
+				t.b.app.extensions.HandleMessage(body, extSource{view: t.view, tab: t})
+			}
+		case "extExt":
+			if t.b.app.extensions != nil {
+				t.b.app.extensions.HandleWebExternal(body, t)
+			}
+		case "extStore":
+			if t.b.app.extensions != nil && isStoreHost(hostOf(t.url)) {
+				t.b.app.extensions.HandleStoreMessage(body, t.view)
+			}
+		}
+		return
+	}
+	t.onVeil(body)
 }
 
 func (t *Tab) onVeil(body string) {
@@ -448,3 +490,7 @@ type tabSnap struct {
 }
 
 func (t *Tab) snapshot() tabSnap { return tabSnap{t.url, t.title, t.pinned} }
+
+func isStoreHost(h string) bool {
+	return h == "chromewebstore.google.com" || h == "chrome.google.com" || h == "addons.mozilla.org"
+}
