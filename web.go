@@ -93,10 +93,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unsafe"
 
 	webkit "github.com/diamondburned/gotk4-webkitgtk/pkg/webkit/v6"
@@ -159,6 +162,15 @@ var slots = []string{
 	".ad-unit", ".adunit", ".adslot", ".dfp-ad", ".gpt-ad", ".w_ad",
 }
 
+// YouTube serves in-feed ads inside its own page, so there is no ad URL to
+// block. Hide the renderer elements that hold them instead.
+var youtubeSlots = []string{
+	"ytd-ad-slot-renderer", "ytd-display-ad-renderer",
+	"ytd-in-feed-ad-layout-renderer", "ytd-promoted-sparkles-web-renderer",
+	"ytd-promoted-video-renderer", "ytd-banner-promo-renderer",
+	"ytd-inline-survey-renderer",
+}
+
 var slotsBySite = []struct {
 	sites    []string
 	selector string
@@ -180,21 +192,49 @@ func networkFilter(domain string) string {
 
 type rule map[string]any
 
-// filterList reads a bundled filter list. build.sh downloads them into
-// assets/filters before compiling, so they travel inside the binary.
-func filterList(name string) string {
-	b, err := assets.ReadFile("assets/" + name)
+// The lists the blocker compiles. They are bundled into the binary at build
+// time and refreshed in the background at runtime, like Brave's component
+// updates — YouTube changes its ads, so a static list stops working.
+type filterSource struct {
+	name string
+	url  string
+}
+
+var filterSources = []filterSource{
+	{"easylist", "https://easylist.to/easylist/easylist.txt"},
+	{"easyprivacy", "https://easylist.to/easylist/easyprivacy.txt"},
+	{"stevenblack", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
+}
+
+const filterAge = 3 * 24 * time.Hour
+
+func filtersDir() string { return filepath.Join(cacheDir(), "filters", "lists") }
+
+func listPath(name string) string { return filepath.Join(filtersDir(), name+".txt") }
+
+// bundledList is the copy shipped inside the binary by build.sh.
+func bundledList(name string) string {
+	b, err := assets.ReadFile("assets/filters/" + name + ".txt")
 	if err != nil {
 		return ""
 	}
 	return string(b)
 }
 
+// filterList prefers the locally refreshed copy, falling back to the bundled
+// one. That way a failed update never leaves the browser unprotected.
+func filterList(name string) string {
+	if b, err := os.ReadFile(listPath(name)); err == nil && len(b) > 0 {
+		return string(b)
+	}
+	return bundledList(name)
+}
+
 // generatedRules compiles EasyList and EasyPrivacy through adblock-rust into
 // WebKit's own content-blocking format.
 func generatedRules() ([]rule, error) {
-	easy := filterList("filters/easylist.txt")
-	privacy := filterList("filters/easyprivacy.txt")
+	easy := filterList("easylist")
+	privacy := filterList("easyprivacy")
 	if easy == "" || privacy == "" {
 		return nil, fmt.Errorf("adblock: filter lists are missing")
 	}
@@ -235,6 +275,8 @@ func shieldRules() []rule {
 	}
 	rules = append(rules, rule{"trigger": rule{"url-filter": ".*"},
 		"action": rule{"type": "css-display-none", "selector": strings.Join(slots, ", ")}})
+	rules = append(rules, rule{"trigger": rule{"url-filter": ".*", "if-domain": []string{"*youtube.com"}},
+		"action": rule{"type": "css-display-none", "selector": strings.Join(youtubeSlots, ", ")}})
 	for _, p := range youtubePaths {
 		rules = append(rules, rule{"trigger": rule{"url-filter": `^https?://([^/]+\.)?youtube\.com` + strings.ReplaceAll(p, ".", `\.`)},
 			"action": rule{"type": "block"}})
@@ -255,8 +297,9 @@ func shieldRules() []rule {
 // hostRules compiles StevenBlack's hosts list. WebKit caps each filter at
 // about 150k rules, so it lives in its own filter alongside shieldRules().
 func hostRules() []rule {
-	text := filterList("filters/stevenblack.txt")
+	text := filterList("stevenblack")
 	if text == "" {
+		log.Printf("fasty: shield: hosts: list is missing")
 		return nil
 	}
 	js, err := adblockRules([]string{text}, 1)
@@ -288,6 +331,7 @@ type Shield struct {
 	pending  int
 	waiting  []tuneReq
 	holding  map[*webkit.UserContentManager]bool
+	updating bool
 }
 
 func newShield(s *Settings) *Shield {
@@ -299,46 +343,98 @@ func newShield(s *Settings) *Shield {
 	return sh
 }
 
-func (sh *Shield) compile() {
-	groups := [][]rule{shieldRules(), hostRules()}
-	sh.filters = make([]*webkit.UserContentFilter, len(groups))
-	sh.pending = len(groups)
+// shieldBuild loads or compiles each filter group, then calls done once all
+// are ready. The same path is used at startup and for a background refresh.
+type shieldBuild struct {
+	idents  []string
+	filters []*webkit.UserContentFilter
+	pending int
+	done    func([]string, []*webkit.UserContentFilter)
+}
+
+func (sh *Shield) build(groups [][]rule, done func([]string, []*webkit.UserContentFilter)) {
+	b := &shieldBuild{
+		idents:  make([]string, len(groups)),
+		filters: make([]*webkit.UserContentFilter, len(groups)),
+		pending: len(groups),
+		done:    done,
+	}
 	for i, rules := range groups {
 		data, _ := json.Marshal(rules)
 		sum := sha256.Sum256(data)
 		ident := fmt.Sprintf("office-shield-%d-%s", i, hex.EncodeToString(sum[:])[:24])
-		sh.idents = append(sh.idents, ident)
+		b.idents[i] = ident
 		i, ident, data := i, ident, data
 		sh.store.Load(context.Background(), ident, func(res gio.AsyncResulter) {
 			f, err := sh.store.LoadFinish(res)
 			if err == nil && f != nil {
-				sh.ready(i, f)
+				b.put(i, f)
 				return
 			}
 			sh.store.Save(context.Background(), ident, glib.NewBytes(data), func(res gio.AsyncResulter) {
 				f, err := sh.store.SaveFinish(res)
 				if err != nil {
 					log.Printf("fasty: shield: %v", err)
-					sh.ready(i, nil)
+					b.put(i, nil)
 					return
 				}
-				sh.ready(i, f)
+				b.put(i, f)
 			})
 		})
 	}
 }
 
-// ready is called once per filter group; the shield goes live once all are in.
-func (sh *Shield) ready(i int, f *webkit.UserContentFilter) {
-	sh.filters[i] = f
-	sh.pending--
-	if sh.pending > 0 {
-		return
+func (b *shieldBuild) put(i int, f *webkit.UserContentFilter) {
+	b.filters[i] = f
+	b.pending--
+	if b.pending == 0 {
+		b.done(b.idents, b.filters)
 	}
-	for _, w := range sh.waiting {
-		sh.Tune(w.ucm, w.host, true)
-	}
-	sh.waiting = nil
+}
+
+func (sh *Shield) compile() {
+	groups := [][]rule{shieldRules(), hostRules()}
+	sh.pending = len(groups)
+	sh.build(groups, func(idents []string, filters []*webkit.UserContentFilter) {
+		sh.idents, sh.filters = idents, filters
+		sh.pending = 0
+		for _, w := range sh.waiting {
+			sh.Tune(w.ucm, w.host, true)
+		}
+		sh.waiting = nil
+		sh.cleanupOld()
+		sh.startUpdates()
+	})
+}
+
+// refresh swaps in freshly compiled rules without restarting the browser.
+func (sh *Shield) refresh() {
+	sh.build([][]rule{shieldRules(), hostRules()}, func(idents []string, filters []*webkit.UserContentFilter) {
+		old := sh.filters
+		sh.idents, sh.filters = idents, filters
+		coreglib.IdleAdd(func() bool {
+			for ucm, on := range sh.holding {
+				if !on {
+					continue
+				}
+				for _, f := range old {
+					if f != nil {
+						ucm.RemoveFilter(f)
+					}
+				}
+				for _, f := range filters {
+					if f != nil {
+						ucm.AddFilter(f)
+					}
+				}
+			}
+			sh.cleanupOld()
+			return false
+		})
+	})
+}
+
+func (sh *Shield) cleanupOld() {
 	sh.store.FetchIdentifiers(context.Background(), func(res gio.AsyncResulter) {
 		for _, old := range sh.store.FetchIdentifiersFinish(res) {
 			keep := false
@@ -356,6 +452,75 @@ func (sh *Shield) ready(i int, f *webkit.UserContentFilter) {
 			}
 		}
 	})
+}
+
+// startUpdates seeds the cache from the bundled lists, then fetches any list
+// older than filterAge in the background and swaps the filters in when done.
+// A failed download leaves the current list in place.
+func (sh *Shield) startUpdates() {
+	if sh.updating {
+		return
+	}
+	sh.updating = true
+	os.MkdirAll(filtersDir(), 0o755)
+	for _, src := range filterSources {
+		if _, err := os.Stat(listPath(src.name)); err == nil {
+			continue
+		}
+		if text := bundledList(src.name); text != "" {
+			os.WriteFile(listPath(src.name), []byte(text), 0o600)
+		}
+	}
+	go func() {
+		changed := false
+		for _, src := range filterSources {
+			p := listPath(src.name)
+			if info, err := os.Stat(p); err == nil && time.Since(info.ModTime()) < filterAge {
+				continue
+			}
+			body, err := fetchFilterList(src.url)
+			if err != nil {
+				log.Printf("fasty: shield: %s: %v", src.name, err)
+				continue
+			}
+			if len(body) < 1024 {
+				log.Printf("fasty: shield: %s: list too small (%d bytes), keeping old copy", src.name, len(body))
+				continue
+			}
+			tmp := p + ".tmp"
+			if err := os.WriteFile(tmp, body, 0o600); err != nil {
+				log.Printf("fasty: shield: %s: %v", src.name, err)
+				continue
+			}
+			if err := os.Rename(tmp, p); err != nil {
+				log.Printf("fasty: shield: %s: %v", src.name, err)
+				continue
+			}
+			log.Printf("fasty: shield: updated %s (%d bytes)", src.name, len(body))
+			changed = true
+		}
+		sh.updating = false
+		if changed {
+			coreglib.IdleAdd(func() bool { sh.refresh(); return false })
+		}
+	}()
+	coreglib.TimeoutAdd(24*60*60*1000, func() bool {
+		sh.startUpdates()
+		return false
+	})
+}
+
+func fetchFilterList(url string) ([]byte, error) {
+	client := &http.Client{Timeout: 45 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 }
 
 func (sh *Shield) Paused(host string) bool {

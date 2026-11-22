@@ -38,11 +38,12 @@ sudo pacman -S go rust curl python3 pkgconf binutils \
 If WebKitGTK 6.0 is missing, `install.sh` downloads and unpacks a private copy
 into `~/.local/opt/webkitgtk6` instead of installing it system-wide.
 
-`build.sh` compiles Brave's `adblock-rust` into the browser and fetches
-EasyList, EasyPrivacy and StevenBlack's hosts list. The lists are embedded in
-the binary and refetched when older than seven days. WebKit's own content
-blocker enforces them; the "Block ads and trackers" switch and the per-site
-pause still work.
+`build.sh` compiles Brave's `adblock-rust` into the browser and bundles
+EasyList, EasyPrivacy and StevenBlack's hosts list. The browser refreshes
+those lists in the background every three days, recompiles them, and swaps
+the filters without a restart (like Brave's component updates). WebKit's own
+content blocker enforces them; the "Block ads and trackers" switch and the
+per-site pause still work. If a download fails, the last good list is kept.
 
 YouTube can lose its picture while keeping audio after an ad when hardware
 video decoding is used on some drivers. Fasty demotes the hardware decoders
