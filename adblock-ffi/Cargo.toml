@@ -1,0 +1,17 @@
+[package]
+name = "fasty-adblock"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fasty_adblock"
+crate-type = ["staticlib"]
+
+[dependencies]
+adblock = { version = "0.13.6", features = ["content-blocking"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+codegen-units = 1
+panic = "abort"

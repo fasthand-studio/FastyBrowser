@@ -1,3 +1,5 @@
 fasty-browser-bin
 fastybrowser
+adblock-ffi/target/
+assets/filters/
 __pycache__/

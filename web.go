@@ -180,11 +180,58 @@ func networkFilter(domain string) string {
 
 type rule map[string]any
 
-func shieldRules() []rule {
+// filterList reads a bundled filter list. build.sh downloads them into
+// assets/filters before compiling, so they travel inside the binary.
+func filterList(name string) string {
+	b, err := assets.ReadFile("assets/" + name)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// generatedRules compiles EasyList and EasyPrivacy through adblock-rust into
+// WebKit's own content-blocking format.
+func generatedRules() ([]rule, error) {
+	easy := filterList("filters/easylist.txt")
+	privacy := filterList("filters/easyprivacy.txt")
+	if easy == "" || privacy == "" {
+		return nil, fmt.Errorf("adblock: filter lists are missing")
+	}
+	js, err := adblockRules([]string{easy, privacy}, 0)
+	if err != nil {
+		return nil, err
+	}
 	var rules []rule
-	for _, d := range unwanted {
-		rules = append(rules, rule{"trigger": rule{"url-filter": networkFilter(d), "load-type": []string{"third-party"}},
-			"action": rule{"type": "block"}})
+	if err := json.Unmarshal([]byte(js), &rules); err != nil {
+		return nil, err
+	}
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("adblock: no rules generated")
+	}
+	return rules, nil
+}
+
+func shieldRules() []rule {
+	var rules, exceptions []rule
+	generated, err := generatedRules()
+	if err == nil {
+		// adblock-rust places ignore-previous-rules exceptions last; our own
+		// rules must go before them or first-party requests ignore them.
+		for _, r := range generated {
+			if a, ok := r["action"].(map[string]any); ok && a["type"] == "ignore-previous-rules" {
+				exceptions = append(exceptions, r)
+			} else {
+				rules = append(rules, r)
+			}
+		}
+		log.Printf("fasty: shield: %d rules from EasyList + EasyPrivacy", len(generated))
+	} else {
+		log.Printf("fasty: shield: %v; using the small built-in list", err)
+		for _, d := range unwanted {
+			rules = append(rules, rule{"trigger": rule{"url-filter": networkFilter(d), "load-type": []string{"third-party"}},
+				"action": rule{"type": "block"}})
+		}
 	}
 	rules = append(rules, rule{"trigger": rule{"url-filter": ".*"},
 		"action": rule{"type": "css-display-none", "selector": strings.Join(slots, ", ")}})
@@ -202,6 +249,27 @@ func shieldRules() []rule {
 		rules = append(rules, rule{"trigger": rule{"url-filter": ".*", "if-domain": s.sites},
 			"action": rule{"type": "css-display-none", "selector": s.selector}})
 	}
+	return append(rules, exceptions...)
+}
+
+// hostRules compiles StevenBlack's hosts list. WebKit caps each filter at
+// about 150k rules, so it lives in its own filter alongside shieldRules().
+func hostRules() []rule {
+	text := filterList("filters/stevenblack.txt")
+	if text == "" {
+		return nil
+	}
+	js, err := adblockRules([]string{text}, 1)
+	if err != nil {
+		log.Printf("fasty: shield: hosts: %v", err)
+		return nil
+	}
+	var rules []rule
+	if err := json.Unmarshal([]byte(js), &rules); err != nil {
+		log.Printf("fasty: shield: hosts: %v", err)
+		return nil
+	}
+	log.Printf("fasty: shield: %d rules from StevenBlack hosts", len(rules))
 	return rules
 }
 
@@ -215,8 +283,9 @@ type tuneReq struct {
 type Shield struct {
 	settings *Settings
 	store    *webkit.UserContentFilterStore
-	filter   *webkit.UserContentFilter
-	ident    string
+	filters  []*webkit.UserContentFilter
+	idents   []string
+	pending  int
 	waiting  []tuneReq
 	holding  map[*webkit.UserContentManager]bool
 }
@@ -231,36 +300,59 @@ func newShield(s *Settings) *Shield {
 }
 
 func (sh *Shield) compile() {
-	data, _ := json.Marshal(shieldRules())
-	sum := sha256.Sum256(data)
-	sh.ident = "office-shield-" + hex.EncodeToString(sum[:])[:32]
-	sh.store.Load(context.Background(), sh.ident, func(res gio.AsyncResulter) {
-		f, err := sh.store.LoadFinish(res)
-		if err == nil && f != nil {
-			sh.ready(f)
-			return
-		}
-		sh.store.Save(context.Background(), sh.ident, glib.NewBytes(data), func(res gio.AsyncResulter) {
-			f, err := sh.store.SaveFinish(res)
-			if err != nil {
-				log.Printf("fasty: shield: %v", err)
+	groups := [][]rule{shieldRules(), hostRules()}
+	sh.filters = make([]*webkit.UserContentFilter, len(groups))
+	sh.pending = len(groups)
+	for i, rules := range groups {
+		data, _ := json.Marshal(rules)
+		sum := sha256.Sum256(data)
+		ident := fmt.Sprintf("office-shield-%d-%s", i, hex.EncodeToString(sum[:])[:24])
+		sh.idents = append(sh.idents, ident)
+		i, ident, data := i, ident, data
+		sh.store.Load(context.Background(), ident, func(res gio.AsyncResulter) {
+			f, err := sh.store.LoadFinish(res)
+			if err == nil && f != nil {
+				sh.ready(i, f)
 				return
 			}
-			sh.ready(f)
+			sh.store.Save(context.Background(), ident, glib.NewBytes(data), func(res gio.AsyncResulter) {
+				f, err := sh.store.SaveFinish(res)
+				if err != nil {
+					log.Printf("fasty: shield: %v", err)
+					sh.ready(i, nil)
+					return
+				}
+				sh.ready(i, f)
+			})
 		})
-	})
+	}
 }
 
-func (sh *Shield) ready(f *webkit.UserContentFilter) {
-	sh.filter = f
+// ready is called once per filter group; the shield goes live once all are in.
+func (sh *Shield) ready(i int, f *webkit.UserContentFilter) {
+	sh.filters[i] = f
+	sh.pending--
+	if sh.pending > 0 {
+		return
+	}
 	for _, w := range sh.waiting {
 		sh.Tune(w.ucm, w.host, true)
 	}
 	sh.waiting = nil
 	sh.store.FetchIdentifiers(context.Background(), func(res gio.AsyncResulter) {
 		for _, old := range sh.store.FetchIdentifiersFinish(res) {
-			if strings.HasPrefix(old, "office-shield") && old != sh.ident {
-				sh.store.Remove(context.Background(), old, nil)
+			keep := false
+			for _, id := range sh.idents {
+				if old == id {
+					keep = true
+				}
+			}
+			if strings.HasPrefix(old, "office-shield") && !keep {
+				sh.store.Remove(context.Background(), old, func(res gio.AsyncResulter) {
+					if err := sh.store.RemoveFinish(res); err != nil {
+						log.Printf("fasty: shield: couldn't remove old filter %s: %v", old, err)
+					}
+				})
 			}
 		}
 	})
@@ -302,7 +394,7 @@ func (sh *Shield) Tune(ucm *webkit.UserContentManager, host string, again bool) 
 	if ucm == nil {
 		return
 	}
-	if sh.filter == nil {
+	if sh.pending > 0 {
 		sh.waiting = append(sh.waiting, tuneReq{ucm, host})
 		return
 	}
@@ -310,9 +402,14 @@ func (sh *Shield) Tune(ucm *webkit.UserContentManager, host string, again bool) 
 	if was, ok := sh.holding[ucm]; ok && was == on && !again {
 		return
 	}
-	ucm.RemoveFilter(sh.filter)
-	if on {
-		ucm.AddFilter(sh.filter)
+	for _, f := range sh.filters {
+		if f == nil {
+			continue
+		}
+		ucm.RemoveFilter(f)
+		if on {
+			ucm.AddFilter(f)
+		}
 	}
 	sh.holding[ucm] = on
 }

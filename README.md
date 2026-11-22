@@ -27,10 +27,15 @@ fasty-browser           # launch from terminal or the app menu
 System dependencies (Arch-based):
 
 ```bash
-sudo pacman -S webkitgtk-6.0 gst-plugins-good gst-libav
+sudo pacman -S webkitgtk-6.0 gst-plugins-good gst-plugins-bad gst-libav rust
 ```
 
 > `gst-plugins-good` is required — without it, pages with video or audio will crash.
+> Rust is needed at build time: `build.sh` compiles Brave's `adblock-rust` into
+> the browser and downloads EasyList, EasyPrivacy and StevenBlack's hosts
+> (refreshed weekly, bundled into the binary). The blocker uses WebKit's own
+> network-level content blocking; the "Block ads and trackers" switch and
+> per-site pause still apply.
 
 If a YouTube video plays sound but shows no picture after an ad, Fasty already
 demotes hardware video decoders (NVDEC/VA-API/VDPAU) so software decoding takes

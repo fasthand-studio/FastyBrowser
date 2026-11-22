@@ -761,7 +761,7 @@ func showSettings(b *Browser) {
 	page.SetIconName("security-high-symbolic")
 	g = adw.NewPreferencesGroup()
 	g.SetTitle("Blocking")
-	g.SetDescription("Third-party trackers and ad networks are stopped at the network level, before the page asks for them.")
+	g.SetDescription("EasyList, EasyPrivacy and StevenBlack hosts, compiled with Brave's adblock-rust, stop ads and trackers at the network level, before the page asks for them.")
 	g.Add(switchRow(b, "Block ads and trackers", "shield", func(d *SettingsData) *bool { return &d.Shield }, false))
 	g.Add(switchRow(b, "Remove tracking parameters from links", "clean_links", func(d *SettingsData) *bool { return &d.CleanLinks }, false))
 	g.Add(switchRow(b, "Prevent cross-site tracking", "tracking_prevention", func(d *SettingsData) *bool { return &d.TrackingPrevention }, true))
