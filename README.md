@@ -4,8 +4,8 @@
 
 <p align="center">
   <a href="#install"><img src="https://img.shields.io/badge/platform-Linux-orange?style=flat-square" alt="Linux"></a>
-  <a href="#install"><img src="https://img.shields.io/badge/lang-Go-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go"></a>
-  <a href="#install"><img src="https://img.shields.io/badge/engine-WebKitGTK%206.0-4fc3f7?style=flat-square" alt="WebKitGTK"></a>
+  <a href="#install"><img src="https://img.shields.io/badge/language-Go-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go"></a>
+  <a href="#install"><img src="https://img.shields.io/badge/engine-WebKitGTK%206.0-4fc3f7?style=flat-square" alt="WebKitGTK 6.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT"></a>
 </p>
 
@@ -13,53 +13,60 @@
 
 ## What is Fasty
 
-Fasty is a web browser for Linux built from the ground up in **Go**. It runs on the system's own **WebKitGTK 6.0** engine with **GTK 4** and **libadwaita** — no bundled Chromium, no Electron, no wrappers. One ~17 MB binary that feels native and stays out of your way.
+Fasty is a Linux browser written in Go. It uses the system's WebKitGTK 6.0
+engine with GTK 4 and libadwaita — no bundled Chromium and no Electron.
 
-It is also the first browser with a **built-in agent interface**. Any AI agent or script can connect to Fasty over a Unix socket, read pages, run JavaScript, click elements, and navigate — no screen scraping, no browser extensions, no middleware.
+It also has a built-in agent interface: an AI agent or script can connect over
+a Unix socket, read a page, run JavaScript, click elements, and navigate —
+without screen scraping or a browser extension.
 
 ## Install
 
 ```bash
 ./install.sh            # builds and installs to ~/.local — no root needed
-fasty-browser           # launch from terminal or the app menu
+fasty-browser           # launch from the terminal or the app menu
 ```
 
-System dependencies (Arch-based):
+Build and runtime tools: Go, Rust (`cargo`), `curl`, `python3`, `pkg-config`,
+`objcopy`, and GStreamer plugins for audio and video. On Arch:
 
 ```bash
-sudo pacman -S webkitgtk-6.0 gst-plugins-good gst-plugins-bad gst-libav rust
+sudo pacman -S go rust curl python3 pkgconf binutils \
+  webkitgtk-6.0 gst-plugins-good gst-plugins-bad gst-libav
 ```
 
-> `gst-plugins-good` is required — without it, pages with video or audio will crash.
-> Rust is needed at build time: `build.sh` compiles Brave's `adblock-rust` into
-> the browser and downloads EasyList, EasyPrivacy and StevenBlack's hosts
-> (refreshed weekly, bundled into the binary). The blocker uses WebKit's own
-> network-level content blocking; the "Block ads and trackers" switch and
-> per-site pause still apply.
+If WebKitGTK 6.0 is missing, `install.sh` downloads and unpacks a private copy
+into `~/.local/opt/webkitgtk6` instead of installing it system-wide.
 
-If a YouTube video plays sound but shows no picture after an ad, Fasty already
-demotes hardware video decoders (NVDEC/VA-API/VDPAU) so software decoding takes
-over — GPU compositing stays on. Set `GST_PLUGIN_FEATURE_RANK` yourself to
-override that.
+`build.sh` compiles Brave's `adblock-rust` into the browser and fetches
+EasyList, EasyPrivacy and StevenBlack's hosts list. The lists are embedded in
+the binary and refetched when older than seven days. WebKit's own content
+blocker enforces them; the "Block ads and trackers" switch and the per-site
+pause still work.
 
-If WebKitGTK 6.0 is not installed, `install.sh` automatically downloads and unpacks a private copy.
+YouTube can lose its picture while keeping audio after an ad when hardware
+video decoding is used on some drivers. Fasty demotes the hardware decoders
+(NVDEC, VA-API, VDPAU) so software decoding takes over, while GPU compositing
+stays on. Set `GST_PLUGIN_FEATURE_RANK` yourself to override this.
 
 ## Features
 
 | | |
 |---|---|
-| **Tabs** | Side column or top bar, pinned tiles, fold sidebar, switch with `Ctrl+K`, lazy restore, auto-sleep |
-| **Privacy** | Built-in ad/tracker blocker in the network stack, per-site toggle, private tabs with isolated cookies |
-| **Agent Socket** | AI agents connect via `$XDG_RUNTIME_DIR/fasty.sock` — read pages, eval JS, click, screenshot |
+| **Tabs** | Side column or top bar, pinned tabs, foldable sidebar, `Ctrl+K` tab switcher, lazy restore, auto-sleep |
+| **Blocking** | Ad/tracker blocker from EasyList, EasyPrivacy and StevenBlack hosts, with a toggle and per-site pause |
+| **Agent Socket** | JSON commands over `$XDG_RUNTIME_DIR/fasty.sock`: tabs, eval, click, screenshot, and more |
 | **Reading** | Reader mode, per-site zoom, clean links, find on page |
-| **Hiding** | Pick any element and hide it permanently — manage what's hidden per site |
+| **Hiding** | Pick an element to hide permanently, managed per site |
 | **Library** | Searchable bookmarks, history and downloads panels |
-| **Media** | Picture-in-picture, camera/mic/location permissions with per-site memory |
-| **Look** | Light, dark, or system theme — native GTK 4 integration |
+| **Media** | Picture-in-picture and remembered camera, microphone and location permissions |
+| **Look** | System, light or dark theme with GTK 4 / libadwaita widgets |
+| **Extensions** | WebExtension-style add-ons: content scripts, background pages, browser APIs, and an extension store |
 
 ## Agent Control
 
-Fasty opens a Unix socket at startup. Send JSON, get JSON — one command per line.
+The Unix socket accepts one JSON command per line and replies with one JSON
+line.
 
 ```bash
 # List open tabs
@@ -87,19 +94,27 @@ echo '{"action":"screenshot","path":"/tmp/shot.png"}' | socat - UNIX-CONNECT:$XD
 | Action | Fields | Returns |
 |---|---|---|
 | `tabs` | | array of `{index, url, title, current, loading, pinned, private}` |
-| `navigate` | `url` | load in current tab |
-| `open` | `url` | open new tab |
+| `navigate` | `url` | load in the current tab |
+| `open` | `url` | open a new tab |
 | `select` | `tab` (1-based) | switch tab |
-| `close` | | close current tab |
+| `close` | | close the selected tab or popup |
 | `back` / `forward` / `reload` | | navigation |
-| `eval` | `script` | run JS, return result |
+| `url` / `title` | | current page URL or title |
+| `eval` | `script` | run JS, return the result |
 | `content` | | `document.body.innerText` |
 | `html` | | `document.documentElement.outerHTML` |
-| `url` / `title` | | current page URL or title |
-| `screenshot` | `path` | save PNG, return path |
-| `click` | `selector` | click first matching element |
-| `type` | `text` | address bar input + navigate |
+| `screenshot` | `path` | save PNG, return the path |
+| `click` | `selector` | click the first matching element |
+| `type` | `text` | resolve text as a URL or search and navigate |
+| `wait` | | no-op reply, useful for checking the socket |
+| `popups` | | array of popups with `index`, `url`, `title`, `loading`, `built`, `selected` |
+| `popup-select` | `tab` (1-based) | select a popup for following commands |
 | `state` | | full browser state |
+| `extensions` | | list installed extensions |
+| `ext-install` | `url` / `path` / `id` | install an extension from a URL, folder or ID |
+| `ext-remove` / `ext-toggle` / `ext-reload` | `id`, `enabled` | manage an extension |
+| `ext-eval` / `ext-call` / `ext-open` / `ext-action` | `id`, `page`, `message`, `target`, `area` | run or query extension code |
+| `ext-logs` / `ext-storage` | `id`, `items` | read extension logs or storage |
 
 </details>
 
@@ -125,31 +140,42 @@ print(cmd("content"))
 
 </details>
 
-## Project Structure
+## Keyboard shortcuts
+
+A few of the common ones: `Ctrl+L` address bar, `Ctrl+K` switch tab,
+`Ctrl+T` new tab, `Ctrl+W` close tab, `Ctrl+R` reload, `Ctrl+F` find,
+`Ctrl+Shift+R` reader mode, `Ctrl+Shift+H` hide an element, `Ctrl+Y` history,
+`Ctrl+Shift+J` downloads, `Ctrl+Shift+E` extensions, `Ctrl+,` settings.
+Press `Ctrl+?` in the app for the full list.
+
+## Project structure
 
 ```
-app.go          application lifecycle, agent socket
+app.go          application lifecycle, renderer and decoder setup
 window.go       window, layout, keyboard shortcuts, find, reader
-tab.go          tab and its lazily-built web view
-web.go          network sessions, web settings, content blocker
-agent.go        Unix socket control interface
+tab.go          tabs and their lazily built web views
+web.go          WebKit sessions, settings, and the content-blocking Shield
+adblock.go      Go bridge to adblock-rust
+adblock-ffi/    Rust crate that compiles filter lists to WebKit rules
+agent.go        JSON-over-Unix-socket control interface
 address.go      URL resolution, search engines, link cleaning
 models.go       history, bookmarks, hidden elements
 store.go        settings and JSON persistence
 omnibox.go      address field with inline completion
-panels.go       history, bookmarks, downloads, settings panels
+panels.go       history, bookmarks, downloads and settings panels
 tabstrip.go     tab strip (side column and top bar)
 downloads.go    download manager
 pip.go          picture-in-picture
+extension*.go   WebExtension runtime, networking, storage and UI
 selftest.go     headless test harness
-assets/         embedded CSS and JS (reader, picker, smooth scroll)
+assets/         embedded CSS, JavaScript and filter lists
 ```
 
 ## Data
 
 ```
 ~/.local/share/fasty-browser/    settings, history, bookmarks, WebKit data
-~/.cache/fasty-browser/          cache, content filters
+~/.cache/fasty-browser/          cache and compiled content filters
 ```
 
 ## License
