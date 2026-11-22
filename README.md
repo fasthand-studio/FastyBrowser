@@ -92,9 +92,12 @@ browser, so blocked ad and tracker requests are never made.
 
 - Rules are split into two WebKit filters because WebKit allows only about
   150,000 rules per filter. WebKit caches the compiled rules on disk.
-- Unlike third-party ads, YouTube's own in-feed ads are part of the page
-  itself and have no separate URL to block. A small cosmetic rule hides
-  YouTube's ad renderer elements so those cards disappear too.
+- Unlike third-party ads, YouTube's own ads are part of the page itself and
+  have no separate URL to block. A cosmetic rule hides in-feed ad cards, and
+  a main-world script strips `adPlacements`, `adSlots` and `playerAds` from
+  the inline player response and from player/watch/playlist responses before
+  the player sees them — the same technique uBlock Origin and AdGuard use.
+  No ad is scheduled, so no ad video is requested.
 - Every three days the browser downloads fresh lists from `easylist.to` and
   GitHub, recompiles them with adblock-rust and swaps the filters in without a
   restart. It checks again daily. If a download fails, the last good list is

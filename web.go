@@ -592,6 +592,7 @@ type Engine struct {
 	webSettings *webkit.Settings
 	picker      string
 	wheel       string
+	youtube     string
 	ctx         C.gpointer
 }
 
@@ -615,7 +616,8 @@ func memoryBudget() (page, net uint) {
 }
 
 func newEngine(s *Settings) *Engine {
-	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js")}
+	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js"),
+		youtube: asset("js/youtube.js")}
 	page, net := memoryBudget()
 	e.ctx = C.sb_context(C.guint(page), C.guint(net))
 	base := filepath.Join(dataDir(), "web")
@@ -729,6 +731,11 @@ func (e *Engine) contentManagerWithExtensions(ext *ExtensionManager) *webkit.Use
 	ucm.AddScript(webkit.NewUserScript(e.picker, webkit.UserContentInjectTopFrame,
 		webkit.UserScriptInjectAtDocumentStart, nil, nil))
 	ucm.RegisterScriptMessageHandler("officeVeil", "")
+	// Strip YouTube's ad data before its player sees it. Must run in the
+	// page's own world so it can replace fetch/XHR and the inline response.
+	ucm.AddScript(webkit.NewUserScript(e.youtube, webkit.UserContentInjectTopFrame,
+		webkit.UserScriptInjectAtDocumentStart,
+		[]string{"*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"}, nil))
 	if e.settings.SmoothScrolling {
 		ucm.AddScript(webkit.NewUserScript(e.wheel, webkit.UserContentInjectAllFrames,
 			webkit.UserScriptInjectAtDocumentStart, nil, nil))
