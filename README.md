@@ -20,6 +20,42 @@ It also has a built-in agent interface: an AI agent or script can connect over
 a Unix socket, read a page, run JavaScript, click elements, and navigate —
 without screen scraping or a browser extension.
 
+## Privacy
+
+**Fasty does not collect any data.** There is no account, telemetry, crash
+reporting, analytics or remote configuration. Nothing is sent to FastHand
+Studio or any other server by the browser itself. The only network requests
+Fasty makes on its own are the public filter-list downloads described below;
+everything else is a page you chose to open (including your chosen search
+engine and any extension you installed).
+
+Your data stays on this machine:
+
+- History, bookmarks, settings, permissions, hidden elements and the open-tab
+  session are JSON files in `~/.local/share/fasty-browser/`.
+- Cookies, cache and WebKit site data live under `~/.local/`, and compiled
+  blocker rules in `~/.cache/fasty-browser/`.
+- There is no sync service and no cloud backup. Clearing browsing data in
+  Settings → Privacy removes local history, cookies, site data and cache.
+
+How the privacy features work:
+
+- **Tracking prevention** (on by default) enables WebKit's Intelligent
+  Tracking Prevention and rejects third-party cookies. Turning it off accepts
+  all cookies.
+- **Private tabs** use a separate, in-memory WebKit network session: no
+  persistent cookies, credentials or site data are written for those tabs.
+- **Clean links** strips common tracking parameters (`utm_*`, `fbclid`,
+  `gclid`, YouTube's `si`, and others) before navigating.
+- **Permissions** (camera, microphone, location, notifications, and more) are
+  remembered per site in the local `settings.json` file.
+- **Per-site blocker pause** turns blocking off for one host without changing
+  the global switch.
+- The **agent socket** is a local Unix socket at
+  `$XDG_RUNTIME_DIR/fasty.sock`, created for your user only. Any process
+  running as you can connect to it and control open tabs, so keep that in
+  mind when granting local access.
+
 ## Install
 
 ```bash
@@ -38,17 +74,35 @@ sudo pacman -S go rust curl python3 pkgconf binutils \
 If WebKitGTK 6.0 is missing, `install.sh` downloads and unpacks a private copy
 into `~/.local/opt/webkitgtk6` instead of installing it system-wide.
 
-`build.sh` compiles Brave's `adblock-rust` into the browser and bundles
-EasyList, EasyPrivacy and StevenBlack's hosts list. The browser refreshes
-those lists in the background every three days, recompiles them, and swaps
-the filters without a restart (like Brave's component updates). WebKit's own
-content blocker enforces them; the "Block ads and trackers" switch and the
-per-site pause still work. If a download fails, the last good list is kept.
+`build.sh` compiles the ad blocker into the browser; see **How blocking works**
+below for what it does.
 
 YouTube can lose its picture while keeping audio after an ad when hardware
 video decoding is used on some drivers. Fasty demotes the hardware decoders
 (NVDEC, VA-API, VDPAU) so software decoding takes over, while GPU compositing
 stays on. Set `GST_PLUGIN_FEATURE_RANK` yourself to override this.
+
+## How blocking works
+
+The blocker is built in — no extension, no proxy, and no remote filtering
+service. It uses Brave's **adblock-rust** engine to turn three public lists —
+**EasyList**, **EasyPrivacy** and **StevenBlack's hosts** — into WebKit's own
+content-blocking rules. WebKit enforces them before a request leaves the
+browser, so blocked ad and tracker requests are never made.
+
+- Rules are split into two WebKit filters because WebKit allows only about
+  150,000 rules per filter. WebKit caches the compiled rules on disk.
+- Unlike third-party ads, YouTube's own in-feed ads are part of the page
+  itself and have no separate URL to block. A small cosmetic rule hides
+  YouTube's ad renderer elements so those cards disappear too.
+- Every three days the browser downloads fresh lists from `easylist.to` and
+  GitHub, recompiles them with adblock-rust and swaps the filters in without a
+  restart. It checks again daily. If a download fails, the last good list is
+  kept; if no list is available at all, a small built-in list of known ad
+  domains is used.
+- The **Block ads and trackers** switch in Settings → Privacy turns the
+  blocker on and off globally, and **About this site** can pause it for a
+  single host.
 
 ## Features
 
@@ -175,9 +229,13 @@ assets/         embedded CSS, JavaScript and filter lists
 ## Data
 
 ```
-~/.local/share/fasty-browser/    settings, history, bookmarks, WebKit data
-~/.cache/fasty-browser/          cache and compiled content filters
+~/.local/share/fasty-browser/    settings, history, bookmarks, hidden
+                               elements, permissions, session, extensions,
+                               cookies and WebKit site data
+~/.cache/fasty-browser/          cache, filter lists and compiled rules
 ```
+
+All of it is local and is never uploaded.
 
 ## License
 
