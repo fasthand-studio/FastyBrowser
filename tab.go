@@ -165,7 +165,7 @@ func (t *Tab) wire(view *webkit.WebView) {
 	})
 	// Full screen from the floating video window takes that window full screen.
 	view.ConnectEnterFullscreen(func() bool {
-		if t.pip != nil {
+		if t.pip != nil && t.pip.mirror == nil {
 			t.pip.win.Fullscreen()
 			return true
 		}
@@ -173,7 +173,7 @@ func (t *Tab) wire(view *webkit.WebView) {
 		return false
 	})
 	view.ConnectLeaveFullscreen(func() bool {
-		if t.pip != nil {
+		if t.pip != nil && t.pip.mirror == nil {
 			t.pip.win.Unfullscreen()
 			return true
 		}
@@ -403,6 +403,12 @@ func (t *Tab) onMessage(body string) {
 		case "extExt":
 			if t.b.app.extensions != nil {
 				t.b.app.extensions.HandleWebExternal(body, t)
+			}
+		case "pip":
+			if t.pip != nil {
+				t.b.popIn(t)
+			} else {
+				t.b.popOut(t)
 			}
 		case "extStore":
 			if t.b.app.extensions != nil && isStoreHost(hostOf(t.url)) {

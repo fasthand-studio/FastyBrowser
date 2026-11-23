@@ -634,7 +634,7 @@ func (b *Browser) selectTab(t *Tab) {
 	if x := b.app.extensions; x != nil && x.anyBackground() {
 		x.fire("tabs.onActivated", map[string]any{"tabId": t.num, "windowId": 1})
 	}
-	if t.pip != nil {
+	if t.pip != nil && t.pip.placeholder != nil {
 		// its page is in the floating window; the tab says so
 		b.stack.SetVisibleChild(t.pip.placeholder)
 		t.lastSeen = now()

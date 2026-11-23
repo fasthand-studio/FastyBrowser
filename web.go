@@ -593,6 +593,7 @@ type Engine struct {
 	picker      string
 	wheel       string
 	youtube     string
+	pipButton   string
 	ctx         C.gpointer
 }
 
@@ -617,7 +618,7 @@ func memoryBudget() (page, net uint) {
 
 func newEngine(s *Settings) *Engine {
 	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js"),
-		youtube: asset("js/youtube.js")}
+		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js")}
 	page, net := memoryBudget()
 	e.ctx = C.sb_context(C.guint(page), C.guint(net))
 	base := filepath.Join(dataDir(), "web")
@@ -736,6 +737,9 @@ func (e *Engine) contentManagerWithExtensions(ext *ExtensionManager) *webkit.Use
 	ucm.AddScript(webkit.NewUserScript(e.youtube, webkit.UserContentInjectTopFrame,
 		webkit.UserScriptInjectAtDocumentStart,
 		[]string{"*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"}, nil))
+	// The hover "Picture in Picture" button on videos.
+	ucm.AddScript(webkit.NewUserScript(e.pipButton, webkit.UserContentInjectTopFrame,
+		webkit.UserScriptInjectAtDocumentStart, nil, nil))
 	if e.settings.SmoothScrolling {
 		ucm.AddScript(webkit.NewUserScript(e.wheel, webkit.UserContentInjectAllFrames,
 			webkit.UserScriptInjectAtDocumentStart, nil, nil))

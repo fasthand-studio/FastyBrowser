@@ -11,6 +11,8 @@ package main
 // script moving it, so it opens where KWin puts it; drag it anywhere.)
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -20,7 +22,9 @@ import (
 	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	webkit "github.com/diamondburned/gotk4-webkitgtk/pkg/webkit/v6"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
@@ -34,6 +38,56 @@ type PiP struct {
 	bar         *gtk.Revealer
 	onBar       bool                  // the pointer is on the bar: keep it
 	resting     coreglib.SourceHandle // hides the bar
+	mirror      *webkit.WebView       // set when only the video plays here; the tab keeps its page
+}
+
+// pipInfoJS describes the page's main video: which site, where to find it
+// again, and how far it has played.
+const pipInfoJS = `(() => {
+  const vs = [...document.querySelectorAll('video')].filter(v => v.readyState > 0 || v.currentSrc);
+  if (!vs.length) return JSON.stringify({kind: 'none'});
+  const area = v => v.clientWidth * v.clientHeight;
+  vs.sort((a, b) => (a.paused - b.paused) || (area(b) - area(a)));
+  const v = vs[0];
+  const u = new URL(location.href);
+  let id = '';
+  if (/(^|\.)youtube\.com$/.test(u.hostname)) {
+    id = u.searchParams.get('v') || (u.pathname.match(/^\/(?:shorts|live|embed)\/([\w-]{11})/) || [])[1] || '';
+  }
+  return JSON.stringify({kind: id ? 'youtube' : (/^https?:/.test(v.currentSrc) ? 'direct' : 'other'),
+    id: id, src: v.currentSrc, time: v.currentTime || 0, paused: v.paused, rate: v.playbackRate || 1,
+    volume: v.volume, page: location.href});
+})()`
+
+// pauseJS stops the page's own copy while its video plays in the window.
+const pauseJS = `(() => { document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} }); return 0; })()`
+
+// playJS makes the page's main video play from a time, quietly resuming it.
+func resumeJS(t float64, play bool) string {
+	return fmt.Sprintf(`(() => {
+  const vs = [...document.querySelectorAll('video')].filter(v => v.readyState > 0 || v.currentSrc);
+  vs.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight);
+  const v = vs[0]; if (!v) return 0;
+  try { v.currentTime = %f; } catch (e) {}
+  if (%t) v.play().catch(() => {});
+  return 0;
+})()`, t, play)
+}
+
+// evalOn runs script in any web view and hands the result to done.
+func evalOn(view *webkit.WebView, script string, done func(string)) {
+	view.EvaluateJavascript(context.Background(), script, "", "", func(res gio.AsyncResulter) {
+		v, err := view.EvaluateJavascriptFinish(res)
+		out := ""
+		if err != nil {
+			out = "error: " + err.Error()
+		} else if v != nil {
+			out = v.String()
+		}
+		if done != nil {
+			done(out)
+		}
+	})
 }
 
 // wake shows the bar, and hides it again after two still seconds.
@@ -120,15 +174,86 @@ func (b *Browser) popOut(t *Tab) {
 	if t == nil || t.view == nil || t.pip != nil {
 		return
 	}
-	t.run(`document.querySelector('video') ? 'yes' : 'no'`, func(v string) {
-		if v != "yes" {
+	t.run(pipInfoJS, func(out string) {
+		var info pipInfo
+		if json.Unmarshal([]byte(out), &info) != nil || info.Kind == "none" || info.Kind == "" {
 			b.toast("No video on this page", 2)
 			return
 		}
-		if t.pip == nil && t.view != nil && b.index(t) >= 0 {
+		if t.pip != nil || t.view == nil || b.index(t) < 0 {
+			return
+		}
+		switch info.Kind {
+		case "youtube", "direct":
+			b.makeMirrorPiP(t, info)
+		default:
 			b.makePiP(t)
 		}
 	})
+}
+
+type pipInfo struct {
+	Kind   string  `json:"kind"`
+	ID     string  `json:"id"`
+	Src    string  `json:"src"`
+	Time   float64 `json:"time"`
+	Paused bool    `json:"paused"`
+	Rate   float64 `json:"rate"`
+	Volume float64 `json:"volume"`
+	Page   string  `json:"page"`
+}
+
+// makeMirrorPiP opens a small window that plays just the video, in a web view
+// of its own, while the tab keeps its page (comments, recommendations and
+// all) with its own copy of the video paused. When the window closes the tab
+// picks up where the window got to.
+func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
+	e := b.app.engine
+	session := e.session
+	if t.private {
+		session = e.privateSession()
+	}
+	ucm := e.contentManager()
+	view := e.newView(session, ucm)
+	view.SetVExpand(true)
+	view.SetHExpand(true)
+
+	p := &PiP{mirror: view}
+	t.pip = p
+	b.openPiPWindow(t, p, view)
+
+	// Full screen from the video takes the small window full screen.
+	view.ConnectEnterFullscreen(func() bool { p.win.Fullscreen(); return true })
+	view.ConnectLeaveFullscreen(func() bool { p.win.Unfullscreen(); return true })
+
+	start := int(info.Time)
+	if info.Kind == "youtube" {
+		view.LoadURI(fmt.Sprintf("https://www.youtube.com/watch?v=%s&t=%ds", info.ID, start))
+	} else {
+		esc := strings.NewReplacer("&", "&amp;", `"`, "&quot;", "<", "&lt;").Replace(info.Src)
+		view.LoadHtml(fmt.Sprintf(`<!doctype html><meta name=referrer content=origin><body style="margin:0;background:#000">`+
+			`<video id=v src="%s" controls autoplay style="width:100vw;height:100vh;object-fit:contain;background:#000"></video>`+
+			`<script>const v=document.getElementById('v');v.addEventListener('loadedmetadata',()=>{v.currentTime=%f;v.playbackRate=%f;v.volume=%f;v.play().catch(()=>{})});</script>`,
+			esc, info.Time, max(info.Rate, 0.1), min(max(info.Volume, 0), 1)), info.Page)
+	}
+	// Pause the tab's copy, and once the mirror has a video, fit and start it.
+	t.run(pauseJS, nil)
+	tries, ready := 0, false
+	coreglib.TimeoutAdd(700, func() bool {
+		if t.pip != p || ready {
+			return false
+		}
+		tries++
+		evalOn(view, videoJS, func(r string) {
+			if t.pip != p || ready || r != "ok" {
+				return
+			}
+			ready = true
+			evalOn(view, `(() => { const v = document.querySelector('video'); if (v) v.play().catch(() => {}); return 0; })()`, nil)
+		})
+		return tries < 30
+	})
+	go keepAbove(pipTitle)
 }
 
 func (b *Browser) makePiP(t *Tab) {
@@ -153,6 +278,12 @@ func (b *Browser) makePiP(t *Tab) {
 		b.stack.SetVisibleChild(p.placeholder)
 	}
 
+	b.openPiPWindow(t, p, view)
+}
+
+// openPiPWindow builds the floating window around view (the tab's own page in
+// the old mode, or the video-only mirror).
+func (b *Browser) openPiPWindow(t *Tab, p *PiP, view *webkit.WebView) {
 	// The floating window: a slim bar to drag it by, and the page.
 	win := gtk.NewWindow()
 	p.win = win
@@ -170,7 +301,7 @@ func (b *Browser) makePiP(t *Tab) {
 	p.title.SetEllipsize(pango.EllipsizeEnd)
 	p.title.AddCSSClass("caption")
 	bar.Append(p.title)
-	fit := flatButton("view-fullscreen-symbolic", "Fill the Window with the Video", func() { t.run(videoJS, nil) })
+	fit := flatButton("view-fullscreen-symbolic", "Fill the Window with the Video", func() { evalOn(view, videoJS, nil) })
 	toTab := flatButton("view-paged-symbolic", "Back to Tab", func() {
 		b.popIn(t)
 		b.selectTab(t)
@@ -217,13 +348,15 @@ func (b *Browser) makePiP(t *Tab) {
 		return true
 	})
 	win.Present()
-	coreglib.TimeoutAdd(250, func() bool {
-		if t.pip == p {
-			t.run(videoJS, nil)
-			go keepAbove(pipTitle)
-		}
-		return false
-	})
+	if p.mirror == nil {
+		coreglib.TimeoutAdd(250, func() bool {
+			if t.pip == p {
+				t.run(videoJS, nil)
+				go keepAbove(pipTitle)
+			}
+			return false
+		})
+	}
 	b.strip.refresh(t)
 }
 
@@ -242,6 +375,10 @@ func (b *Browser) togglePiP() {
 func (b *Browser) popIn(t *Tab) {
 	p := t.pip
 	if p == nil {
+		return
+	}
+	if p.mirror != nil {
+		b.closeMirror(t, p, true)
 		return
 	}
 	t.pip = nil
@@ -276,11 +413,41 @@ func (b *Browser) dropPiP(t *Tab) {
 	if p == nil {
 		return
 	}
+	if p.mirror != nil {
+		b.closeMirror(t, p, false)
+		return
+	}
 	t.pip = nil
 	p.stopResting()
 	p.win.SetChild(nil)
 	p.win.Destroy()
 	b.stack.Remove(p.placeholder)
+}
+
+// closeMirror ends a video-only window. With resume, the tab's own video
+// carries on from wherever the window had got to.
+func (b *Browser) closeMirror(t *Tab, p *PiP, resume bool) {
+	t.pip = nil
+	p.stopResting()
+	finish := func(out string) {
+		p.win.Destroy()
+		b.strip.refresh(t)
+		if !resume || t.view == nil {
+			return
+		}
+		var st struct {
+			Time   float64 `json:"time"`
+			Paused bool    `json:"paused"`
+		}
+		if json.Unmarshal([]byte(out), &st) == nil && st.Time > 0 {
+			t.run(resumeJS(st.Time, !st.Paused), nil)
+		}
+	}
+	if !resume {
+		finish("")
+		return
+	}
+	evalOn(p.mirror, `(() => { const v = document.querySelector('video'); return JSON.stringify(v ? {time: v.currentTime, paused: v.paused} : {}); })()`, finish)
 }
 
 func (p *PiP) stopResting() {
