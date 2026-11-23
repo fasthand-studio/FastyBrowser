@@ -223,6 +223,7 @@ func pickVideoDecoders() {
 }
 
 func main() {
+	hardenFiles()
 	gpuDecodeStart() // may restart the program once with a helper library loaded
 	pickRenderer()
 	pickVideoDecoders()

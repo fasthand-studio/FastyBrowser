@@ -47,6 +47,9 @@ Your data stays on this machine:
   or GNOME Keyring), or in a file readable only by you if there is no keyring.
 - Cookies, cache and WebKit site data live under `~/.local/`, and compiled
   blocker rules in `~/.cache/fasty-browser/`.
+- The data and cache folders are readable by your user only (mode 700, files
+  600), including data written by older versions, so other accounts on the
+  computer can't read your history, open tabs or settings.
 - There is no sync service and no cloud backup. Clearing browsing data in
   Settings → Privacy removes local history, cookies, site data and cache. It
   does not touch passkeys or Authenticator accounts: delete those where they
@@ -65,6 +68,9 @@ How the privacy features work:
   remembered per site in the local `settings.json` file.
 - **Per-site blocker pause** turns blocking off for one host without changing
   the global switch.
+- **Other apps** (mail, Steam, Zoom, an editor, and so on) are only opened
+  from a link you click or a key you press. A page that tries to launch one on
+  its own, by redirecting or from a script, is stopped.
 - The **agent socket** is a local Unix socket at
   `$XDG_RUNTIME_DIR/fasty.sock`, created for your user only. Any process
   running as you can connect to it and control open tabs, so keep that in

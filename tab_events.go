@@ -39,7 +39,14 @@ func (t *Tab) onPolicy(decision webkit.PolicyDecisioner, kind webkit.PolicyDecis
 		sc := scheme(uri)
 		if externalSchemes[sc] {
 			d.Ignore()
-			openExternal(uri)
+			// A page may only open another app because you did something (a click
+			// or a key). One that does it on its own (a redirect, a script) is
+			// how pages launch Steam, Zoom or an editor behind your back.
+			if action.IsUserGesture() {
+				openExternal(uri)
+			} else {
+				t.b.toast("A page tried to open another app and was stopped", 3)
+			}
 			return true
 		}
 		mods := gdk.ModifierType(action.Modifiers())

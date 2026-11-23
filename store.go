@@ -29,16 +29,37 @@ func xdgDir(env, fallback string) string {
 	return filepath.Join(home, fallback)
 }
 
-func dataDir() string {
-	p := filepath.Join(xdgDir("XDG_DATA_HOME", ".local/share"), appName)
-	os.MkdirAll(p, 0o755)
+// privateDir makes the folder (if needed) readable by this user only. History,
+// the open tabs, bookmarks and settings say a lot about a person, and these
+// folders used to be open to every account on the computer. Setting the folder
+// itself to 0700 also shuts out the files in it.
+func privateDir(p string) string {
+	os.MkdirAll(p, 0o700)
+	if fi, err := os.Stat(p); err == nil && fi.Mode().Perm() != 0o700 {
+		os.Chmod(p, 0o700)
+	}
 	return p
 }
 
+func dataDir() string {
+	return privateDir(filepath.Join(xdgDir("XDG_DATA_HOME", ".local/share"), appName))
+}
+
 func cacheDir() string {
-	p := filepath.Join(xdgDir("XDG_CACHE_HOME", ".cache"), appName)
-	os.MkdirAll(p, 0o755)
-	return p
+	return privateDir(filepath.Join(xdgDir("XDG_CACHE_HOME", ".cache"), appName))
+}
+
+// hardenFiles makes the files directly in the data folder private too (older
+// versions wrote them readable by everyone).
+func hardenFiles() {
+	dir := dataDir()
+	if ents, err := os.ReadDir(dir); err == nil {
+		for _, e := range ents {
+			if !e.IsDir() {
+				os.Chmod(filepath.Join(dir, e.Name()), 0o600)
+			}
+		}
+	}
 }
 
 func dataPath(name string) string { return filepath.Join(dataDir(), name) }
@@ -58,7 +79,7 @@ func writeJSON(name string, value any) error {
 	}
 	target := dataPath(name)
 	tmp := target + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, target)

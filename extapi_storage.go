@@ -34,7 +34,7 @@ func (m *ExtensionManager) saveStore(ext *Extension, area string, store map[stri
 	case "managed":
 	default:
 		out, _ := json.Marshal(store)
-		os.WriteFile(filepath.Join(ext.Dir, ".storage."+area+".json"), out, 0o644)
+		os.WriteFile(filepath.Join(ext.Dir, ".storage."+area+".json"), out, 0o600)
 	}
 }
 
