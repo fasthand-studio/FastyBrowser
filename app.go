@@ -201,6 +201,15 @@ func pickRenderer() {
 // audio but stop handing frames to the compositor, leaving a black picture.
 // Rank 0 demotes them below software decoders instead of disabling them, so a
 // codec with no software decoder still plays. A rank set by the user wins.
+//
+// Measured (RTX 3060, WebKitGTK 2.54, proprietary driver): letting NVDEC
+// through doesn't work anyway. WebKit's sandbox gives the web process
+// /dev/nvidia0 and /dev/nvidiactl but not /dev/nvidia-uvm, which CUDA needs, so
+// GStreamer's nvcodec plugin fails to start in it ("CUDA_ERROR_NO_DEVICE") and
+// decoding falls back to software. webkit_web_context_add_path_to_sandbox
+// doesn't expose it, and turning the sandbox off isn't worth it: with NVDEC
+// running, 1080p YouTube took more CPU (about 60% of a core against 45%),
+// since WebKit copies each decoded frame back from GPU memory.
 func pickVideoDecoders() {
 	if os.Getenv("GST_PLUGIN_FEATURE_RANK") != "" {
 		return

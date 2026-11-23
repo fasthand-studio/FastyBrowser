@@ -99,6 +99,14 @@ video decoding is used on some drivers. Fasty demotes the hardware decoders
 (NVDEC, VA-API, VDPAU) so software decoding takes over, while GPU compositing
 stays on. Set `GST_PLUGIN_FEATURE_RANK` yourself to override this.
 
+Letting the GPU decode video wouldn't help on current WebKitGTK anyway. On an
+NVIDIA card WebKit's sandbox hides `/dev/nvidia-uvm`, which CUDA needs, so
+GStreamer's NVDEC plugin can't start inside the web process and decoding falls
+back to software (checked with the plugin's own log). Switching the sandbox
+off to allow it is unsafe, and when it ran, 1080p YouTube used more CPU, not
+less (about 60% of a core against 45%), because WebKit copies every decoded
+frame back from GPU memory.
+
 ## How blocking works
 
 The blocker is built in — no extension, no proxy, and no remote filtering
