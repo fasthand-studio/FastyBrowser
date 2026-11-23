@@ -80,4 +80,38 @@
     });
     return realSend.apply(this, args);
   };
+
+  // Cosmetic layer: hide ad containers from inside the page. The content
+  // blocker's css rules miss some (sidebar companion banners, masthead).
+  const HIDE = [
+    '#player-ads', '#masthead-ad', 'ytd-companion-slot-renderer',
+    'ytd-action-companion-ad-renderer', 'ytd-ad-slot-renderer',
+    'ytd-display-ad-renderer', 'ytd-in-feed-ad-layout-renderer',
+    'ytd-promoted-sparkles-web-renderer', 'ytd-promoted-video-renderer',
+    'ytd-banner-promo-renderer', 'ytd-statement-banner-renderer',
+    'ytd-primetime-promo-renderer', 'ytd-brand-video-singleton-renderer',
+    'ytd-brand-video-shelf-renderer', 'ytd-merch-shelf-renderer',
+    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"]',
+    '.ytp-ad-module', '.ytp-ad-overlay-container', '.ytp-ad-overlay-slot',
+    '.video-ads', '.ytp-paid-content-overlay',
+    'ytd-rich-item-renderer:has(ytd-ad-slot-renderer)',
+    'ytd-rich-section-renderer:has(ytd-statement-banner-renderer)'
+  ];
+  const style = document.createElement('style');
+  style.textContent = HIDE.join(',\n') + ' { display: none !important; }';
+  (document.documentElement || document).appendChild(style);
+
+  // Fallback for any video ad that still starts: mute, jump to the end, skip.
+  function skipAd() {
+    const player = document.querySelector('#movie_player');
+    if (!player || !player.classList.contains('ad-showing')) return;
+    const video = player.querySelector('video.html5-main-video') || document.querySelector('video');
+    if (video) {
+      video.muted = true;
+      if (isFinite(video.duration) && video.duration > 0) video.currentTime = video.duration;
+    }
+    const btn = document.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button');
+    if (btn) btn.click();
+  }
+  setInterval(skipAd, 250);
 })();
