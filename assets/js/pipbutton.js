@@ -1,7 +1,8 @@
-// Firefox/Zen-style Picture in Picture toggle: a pill on the right edge of a
-// video while the pointer is on it. Clicking it pops the video out into its
-// own window; while it is out, the page's video area says so, and clicking
-// that brings the video back.
+// A small, quiet Picture in Picture button, like the ones in a video's own
+// controls: an icon in the corner of the video that shows while the pointer
+// is on it and fades with it. Clicking it pops the video out into its own
+// window; while it is out, the page's video area says so, and clicking that
+// brings the video back.
 (() => {
   'use strict';
   if (window.__fastyPipButton) return;
@@ -15,23 +16,24 @@
     btn = document.createElement('div');
     btn.setAttribute('data-fasty-pip-btn', '');
     btn.title = 'Picture in Picture';
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('aria-label', 'Picture in Picture');
     // Built with the DOM, not innerHTML: YouTube enforces Trusted Types.
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
-    for (const [k, v] of [['viewBox', '0 0 24 24'], ['width', '18'], ['height', '18'], ['fill', 'none'],
+    for (const [k, v] of [['viewBox', '0 0 24 24'], ['width', '16'], ['height', '16'], ['fill', 'none'],
                           ['stroke', '#fff'], ['stroke-width', '2'], ['stroke-linejoin', 'round']]) svg.setAttribute(k, v);
     const big = document.createElementNS(NS, 'rect');
     for (const [k, v] of [['x', '2.5'], ['y', '4.5'], ['width', '19'], ['height', '15'], ['rx', '2']]) big.setAttribute(k, v);
     const small = document.createElementNS(NS, 'rect');
     for (const [k, v] of [['x', '12'], ['y', '11'], ['width', '8'], ['height', '6'], ['rx', '1'], ['fill', '#fff']]) small.setAttribute(k, v);
     svg.append(big, small);
-    const label = document.createElement('span');
-    label.textContent = 'Picture-in-Picture';
-    label.style.cssText = 'all:initial;color:#fff;font:600 12px system-ui,sans-serif;margin-left:8px;white-space:nowrap;';
-    btn.append(svg, label);
-    btn.style.cssText = 'all:initial;position:fixed;z-index:2147483647;height:32px;box-sizing:border-box;' +
-      'display:none;align-items:center;padding:0 12px 0 10px;border-radius:16px 0 0 16px;cursor:pointer;' +
-      'background:#0060df;box-shadow:none;';
+    btn.appendChild(svg);
+    btn.style.cssText = 'all:initial;position:fixed;z-index:2147483647;width:30px;height:30px;box-sizing:border-box;' +
+      'display:none;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;opacity:0;' +
+      'background:rgba(0,0,0,.45);transition:opacity .15s,background .15s;';
+    btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(0,0,0,.75)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(0,0,0,.45)'; });
     btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
       const v = current;
@@ -56,7 +58,12 @@
     (document.body || document.documentElement).appendChild(btn);
   }
 
-  function hide() { if (btn) btn.style.display = 'none'; current = null; }
+  function hide() {
+    if (!btn) return;
+    btn.style.opacity = '0';
+    setTimeout(() => { if (btn.style.opacity === '0') btn.style.display = 'none'; }, 160);
+    current = null;
+  }
 
   function videoAt(x, y) {
     // elementsFromPoint, also looking inside shadow roots (custom players).
@@ -81,7 +88,7 @@
     if (!v) {
       if (btn && btn.style.display !== 'none') {
         clearTimeout(hideTimer);
-        hideTimer = setTimeout(hide, 600);
+        hideTimer = setTimeout(hide, 400);
       }
       return;
     }
@@ -91,10 +98,11 @@
     clearTimeout(hideTimer);
     current = v;
     btn.style.display = 'flex';
-    // Flush with the video's right edge, halfway down it (like Firefox).
-    btn.style.left = Math.max(4, Math.min(innerWidth, r.right) - btn.offsetWidth) + 'px';
-    btn.style.top = Math.max(4, r.top + r.height / 2 - 16) + 'px';
-    hideTimer = setTimeout(hide, 2500);
+    // Tucked into the video's top-right corner.
+    btn.style.left = Math.max(4, Math.min(innerWidth, r.right) - 38) + 'px';
+    btn.style.top = Math.max(4, r.top + 8) + 'px';
+    btn.style.opacity = '1';
+    hideTimer = setTimeout(hide, 2000);
   }, { capture: true, passive: true });
 
   // While a video is out in its pop-up window, its place in the page says so.

@@ -39,6 +39,7 @@ type PiP struct {
 	onBar       bool                  // the pointer is on the bar: keep it
 	resting     coreglib.SourceHandle // hides the bar
 	mirror      *webkit.WebView       // set when only the video plays here; the tab keeps its page
+	origin      string                // the tab's page when the video went out
 }
 
 // pipInfoJS describes the page's main video: which site, where to find it
@@ -55,7 +56,7 @@ const pipInfoJS = `(() => {
     id = u.searchParams.get('v') || (u.pathname.match(/^\/(?:shorts|live|embed)\/([\w-]{11})/) || [])[1] || '';
   }
   return JSON.stringify({kind: id ? 'youtube' : (/^https?:/.test(v.currentSrc) ? 'direct' : 'other'),
-    id: id, src: v.currentSrc, time: v.currentTime || 0, paused: v.paused, rate: v.playbackRate || 1,
+    id: id, src: v.currentSrc, time: v.currentTime || 0, paused: v.paused, loop: v.loop, rate: v.playbackRate || 1,
     volume: v.volume, page: location.href});
 })()`
 
@@ -65,13 +66,19 @@ const pauseJS = `(() => { document.querySelectorAll('video').forEach(v => { try 
 // playJS makes the page's main video play from a time, quietly resuming it.
 func resumeJS(t float64, play bool) string {
 	return fmt.Sprintf(`(() => {
+  // YouTube's player manages its own buffer, and undoes a raw seek past it,
+  // so go through its API there.
+  const yt = document.getElementById('movie_player');
+  if (yt && yt.seekTo) {
+    try { yt.seekTo(%f, true); (%t ? yt.playVideo : yt.pauseVideo).call(yt); return 0; } catch (e) {}
+  }
   const vs = [...document.querySelectorAll('video')].filter(v => v.readyState > 0 || v.currentSrc);
   vs.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight);
-  const v = vs[0]; if (!v) return 0;
+  const v = document.querySelector('video[data-fasty-pip-target]') || vs[0]; if (!v) return 0;
   try { v.currentTime = %f; } catch (e) {}
   if (%t) v.play().catch(() => {});
   return 0;
-})()`, t, play)
+})()`, t, play, t, play)
 }
 
 // evalOn runs script in any web view and hands the result to done.
@@ -198,6 +205,7 @@ type pipInfo struct {
 	Src    string  `json:"src"`
 	Time   float64 `json:"time"`
 	Paused bool    `json:"paused"`
+	Loop   bool    `json:"loop"`
 	Rate   float64 `json:"rate"`
 	Volume float64 `json:"volume"`
 	Page   string  `json:"page"`
@@ -218,7 +226,7 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 	view.SetVExpand(true)
 	view.SetHExpand(true)
 
-	p := &PiP{mirror: view}
+	p := &PiP{mirror: view, origin: t.url}
 	t.pip = p
 	b.openPiPWindow(t, p, view)
 
@@ -232,11 +240,15 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 	} else if info.Kind == "youtube" {
 		view.LoadURI(fmt.Sprintf("https://www.youtube.com/watch?v=%s&t=%ds", info.ID, start))
 	} else {
+		attrs := ""
+		if info.Loop {
+			attrs = "loop"
+		}
 		esc := strings.NewReplacer("&", "&amp;", `"`, "&quot;", "<", "&lt;").Replace(info.Src)
 		view.LoadHtml(fmt.Sprintf(`<!doctype html><meta name=referrer content=origin><body style="margin:0;background:#000">`+
-			`<video id=v src="%s" controls autoplay style="width:100vw;height:100vh;object-fit:contain;background:#000"></video>`+
-			`<script>const v=document.getElementById('v');v.addEventListener('loadedmetadata',()=>{v.currentTime=%f;v.playbackRate=%f;v.volume=%f;v.play().catch(()=>{})});</script>`,
-			esc, info.Time, max(info.Rate, 0.1), min(max(info.Volume, 0), 1)), info.Page)
+			`<video id=v src="%s" controls %s style="width:100vw;height:100vh;object-fit:contain;background:#000"></video>`+
+			`<script>const v=document.getElementById('v');v.addEventListener('loadedmetadata',()=>{v.currentTime=%f;v.playbackRate=%f;v.volume=%f;if(%t)v.play().catch(()=>{})});</script>`,
+			esc, attrs, info.Time, max(info.Rate, 0.1), min(max(info.Volume, 0), 1), !info.Paused), info.Page)
 	}
 	// Pause the tab's copy, and once the mirror has a video, fit and start it.
 	if info.Kind != "frame" { // a frame's video was paused, and covered, by the frame itself
@@ -258,7 +270,11 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 			if info.Kind == "frame" {
 				seek = fmt.Sprintf("try { v.currentTime = %f; v.playbackRate = %f; } catch (e) {} ", info.Time, max(info.Rate, 0.1))
 			}
-			evalOn(view, `(() => { const v = document.querySelector('video'); if (v) { `+seek+`v.play().catch(() => {}); } return 0; })()`, nil)
+			play := "v.play().catch(() => {});"
+			if info.Paused {
+				play = "v.pause();"
+			}
+			evalOn(view, `(() => { const v = document.querySelector('video'); if (v) { `+seek+play+` } return 0; })()`, nil)
 		})
 		return tries < 30
 	})
@@ -444,7 +460,9 @@ func (b *Browser) closeMirror(t *Tab, p *PiP, resume bool) {
 		if t.view != nil {
 			t.run(`window.__fastyPipUI && window.__fastyPipUI.off(); 0`, nil)
 		}
-		if !resume || t.view == nil {
+		// If the tab has gone to another page meanwhile, there is nothing
+		// to resume: don't touch whatever video that page has.
+		if !resume || t.view == nil || t.url != p.origin {
 			return
 		}
 		var st struct {

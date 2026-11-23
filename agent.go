@@ -23,6 +23,7 @@ package main
 //	{"action":"state"}                             full browser state
 //	{"action":"type","text":"hello"}               type into the address bar and go
 //	{"action":"click","selector":"#btn"}           click first element matching CSS selector
+//	{"action":"pip-eval","script":"…"}             run JS in the current tab's Picture-in-Picture window
 //	{"action":"popups"}                            list pop-up windows
 //	{"action":"popup-select","tab":1}              drive pop-up N with eval/click/content
 //
@@ -305,6 +306,21 @@ func doAgentCmd(b *Browser, cmd agentCmd, ch chan<- agentReply) {
 			}
 		})
 		return // async — the callback sends the reply
+
+	case "pip-eval":
+		t := agentTab(b)
+		if t == nil || t.pip == nil || t.pip.mirror == nil {
+			fail("no video-only Picture-in-Picture window")
+			return
+		}
+		evalOn(t.pip.mirror, cmd.Script, func(result string) {
+			if strings.HasPrefix(result, "error: ") {
+				ch <- agentReply{Error: result}
+			} else {
+				ch <- agentReply{OK: true, Result: result}
+			}
+		})
+		return
 
 	case "content":
 		t := agentTab(b)
