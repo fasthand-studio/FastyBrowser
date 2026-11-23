@@ -3,3 +3,4 @@ fastybrowser
 adblock-ffi/target/
 assets/filters/
 __pycache__/
+dist/

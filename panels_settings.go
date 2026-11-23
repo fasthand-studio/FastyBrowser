@@ -328,7 +328,7 @@ func passkeysGroup(b *Browser) *adw.PreferencesGroup {
 func agentGroup(b *Browser) *adw.PreferencesGroup {
 	g := adw.NewPreferencesGroup()
 	g.SetTitle("Agent control")
-	g.SetDescription("A private socket (" + agentSockPath() + ") lets a script or AI agent running as you read pages, click and run JavaScript in your tabs. Turn it off if you don't use that: anything running as your user could otherwise use it.")
+	g.SetDescription("A private socket (" + agentSockPath() + ") lets a script or AI agent running as you read pages, click and run JavaScript in your tabs. Off by default: turn it on only if you use that, since anything running as your user could then use it.")
 	r := switchRow(b, "Allow scripts and agents to control Fasty", "agent_socket", func(d *SettingsData) *bool { return &d.AgentSocket }, false)
 	g.Add(r)
 	return g

@@ -72,8 +72,9 @@ How the privacy features work:
   from a link you click or a key you press. A page that tries to launch one on
   its own, by redirecting or from a script, is stopped.
 - The **agent socket** is a local Unix socket at
-  `$XDG_RUNTIME_DIR/fasty.sock`, created for your user only. Settings → Privacy →
-  Agent control turns it off (it takes effect at once and ends open connections). Any process
+  `$XDG_RUNTIME_DIR/fasty.sock`, created for your user only. It is off by default: Settings → Privacy →
+  Agent control turns it on or off (at once, and turning it off ends open
+  connections). `FASTY_AGENT=1 fasty-browser` starts it for one run. Any process
   running as you can connect to it and control open tabs, so keep that in
   mind when granting local access.
 
@@ -301,7 +302,24 @@ lacks. Today it makes GitHub load its sign-in options (Google, Apple) and
 stops GitHub's tab bars from slowing scrolling. Fixes are limited to the one
 site they are for.
 
+## Installing from a release
+
+`packaging/make-release.sh` builds `dist/fasty-browser-VERSION-linux-ARCH.tar.gz`
+and a `SHA256SUMS` file. Unpack it and run `./install.sh`. It installs for your
+user only (no root) and asks, in order: whether the libraries Fasty needs are
+there (with the package command for your distribution), which search engine to
+use, whether to make Fasty your default browser, GPU video decoding (only if you
+have an NVIDIA card), and whether to bring bookmarks and history over from
+Firefox, Zen, LibreWolf, Chrome, Chromium, Brave, Vivaldi, Edge or Opera.
+Passwords and cookies are not imported.
+
+For scripts: `./install.sh --yes --default-browser no --engine duckduckgo
+--import none`. `./install.sh --uninstall` removes the program and keeps your data.
+
 ## Agent Control
+
+The socket is off by default. Turn it on in Settings → Privacy → Agent control,
+or start Fasty with `FASTY_AGENT=1 fasty-browser`.
 
 The Unix socket accepts one JSON command per line and replies with one JSON
 line.

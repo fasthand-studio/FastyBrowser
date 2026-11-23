@@ -112,7 +112,9 @@ func (a *App) startup() {
 func (a *App) win() (*Browser, bool) {
 	if a.window == nil {
 		a.window = newBrowser(a)
-		if a.settings.AgentSocket {
+		// Off unless you turn it on (Settings > Privacy), or FASTY_AGENT=1 is set
+		// for a run (tests and scripts that start Fasty themselves).
+		if a.settings.AgentSocket || os.Getenv("FASTY_AGENT") == "1" {
 			a.agentLn = startAgent(a.window)
 		}
 		// Turning it off in Settings takes effect at once.
