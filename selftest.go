@@ -16,6 +16,7 @@ package main
 //	auth open | add ISSUER|ACCOUNT|SECRET | pin on 1234 | pin off 1234 | lock   Authenticator
 //	toast TEXT         show a toast (it should appear inside an open dialog)
 //	pipinfo            frames shown so far and the capture width of the copied-video window
+//	edgeenter / sideleave   the pointer entering the folded sidebar's edge, or leaving the peeking sidebar
 //	copyaddr           select all in the address field and copy it; the clipboard text goes in the log
 //	eval JS            run in the page; the result goes in the log
 //	state              tabs, the current one, and how it is doing
@@ -223,6 +224,12 @@ func runSelftest(b *Browser, script string) {
 			if !found {
 				log = append(log, "pipinfo: no copied-video window")
 			}
+		case "edgeenter":
+			coreglib.BaseObject(b.edgeMotion).Emit("enter", 1.0, 100.0)
+			log = append(log, fmt.Sprintf("edgeenter: peeking=%v", b.peeking))
+		case "sideleave":
+			coreglib.BaseObject(b.sideMotion).Emit("leave")
+			log = append(log, fmt.Sprintf("sideleave: peeking=%v", b.peeking))
 		case "copyaddr":
 			b.omnibox.entry.GrabFocus()
 			b.omnibox.entry.SelectRegion(0, -1)

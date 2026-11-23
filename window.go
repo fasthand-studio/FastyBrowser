@@ -24,55 +24,59 @@ type binding struct {
 
 type Browser struct {
 	*adw.ApplicationWindow
-	app         *App
-	tabs        []*Tab
-	popups      []*Tab         // popups live in their own windows, not in tabs
-	passkeyAsk  *passkeyPrompt // the passkey question on screen, if any
-	current     *Tab
-	closed      []closedTab
-	fullPage    bool
-	peeking     bool
-	strip       *TabStrip
-	omnibox     *Omnibox
-	stack       *gtk.Stack
-	blank       *gtk.Box
-	overlay     *gtk.Overlay
-	spotlight   *Spotlight
-	progress    *gtk.ProgressBar
-	status      *gtk.Label
-	findbar     *gtk.Revealer
-	findEntry   *gtk.SearchEntry
-	findCount   *gtk.Label
-	banner      *gtk.Revealer
-	bannerLabel *gtk.Label
-	toasts      *adw.ToastOverlay
-	keep        *gtk.Fixed         // where the page of a copied video waits, mapped but unseen, while another tab is in front
-	dialogToast []func(*adw.Toast) // toast sinks of the dialogs on screen, innermost last
-	card        *gtk.Box
-	side        *gtk.Box
-	sideHead    *gtk.WindowHandle
-	headBox     *gtk.Box
-	sideField   *gtk.Box
-	sideFoot    *gtk.Box
-	grip        *gtk.Box
-	edge        *gtk.Box
-	top         *gtk.WindowHandle
-	topNav      *gtk.Box
-	topMenu     *gtk.Box
-	topField    *gtk.Box
-	body        *gtk.Box
-	root        *gtk.Box
-	nav         *gtk.Box
-	back        *gtk.Button
-	fwd         *gtk.Button
-	reloadBtn   *gtk.Button
-	menu        *gtk.MenuButton
-	dlButton    *gtk.Button
-	bindings    map[binding]func()
-	saving      coreglib.SourceHandle
-	w0          int
-	extButtons  []*gtk.Button
-	authBtn     *gtk.Button // the Authenticator icon next to the extensions button
+	app          *App
+	tabs         []*Tab
+	popups       []*Tab         // popups live in their own windows, not in tabs
+	passkeyAsk   *passkeyPrompt // the passkey question on screen, if any
+	current      *Tab
+	closed       []closedTab
+	fullPage     bool
+	peeking      bool
+	layoutQueued bool
+	peekTimer    coreglib.SourceHandle      // hides the peeking sidebar a moment after the pointer leaves
+	edgeMotion   *gtk.EventControllerMotion // pointer at the left edge while the sidebar is folded
+	sideMotion   *gtk.EventControllerMotion // pointer leaving the peeking sidebar
+	strip        *TabStrip
+	omnibox      *Omnibox
+	stack        *gtk.Stack
+	blank        *gtk.Box
+	overlay      *gtk.Overlay
+	spotlight    *Spotlight
+	progress     *gtk.ProgressBar
+	status       *gtk.Label
+	findbar      *gtk.Revealer
+	findEntry    *gtk.SearchEntry
+	findCount    *gtk.Label
+	banner       *gtk.Revealer
+	bannerLabel  *gtk.Label
+	toasts       *adw.ToastOverlay
+	keep         *gtk.Fixed         // where the page of a copied video waits, mapped but unseen, while another tab is in front
+	dialogToast  []func(*adw.Toast) // toast sinks of the dialogs on screen, innermost last
+	card         *gtk.Box
+	side         *gtk.Box
+	sideHead     *gtk.WindowHandle
+	headBox      *gtk.Box
+	sideField    *gtk.Box
+	sideFoot     *gtk.Box
+	grip         *gtk.Box
+	edge         *gtk.Box
+	top          *gtk.WindowHandle
+	topNav       *gtk.Box
+	topMenu      *gtk.Box
+	topField     *gtk.Box
+	body         *gtk.Box
+	root         *gtk.Box
+	nav          *gtk.Box
+	back         *gtk.Button
+	fwd          *gtk.Button
+	reloadBtn    *gtk.Button
+	menu         *gtk.MenuButton
+	dlButton     *gtk.Button
+	bindings     map[binding]func()
+	saving       coreglib.SourceHandle
+	w0           int
+	extButtons   []*gtk.Button
+	authBtn      *gtk.Button // the Authenticator icon next to the extensions button
 }
 
 func newBrowser(app *App) *Browser {
@@ -239,9 +243,11 @@ func newBrowser(app *App) *Browser {
 	m := gtk.NewEventControllerMotion()
 	m.ConnectEnter(func(x, y float64) { b.peek(true) })
 	b.edge.AddController(m)
+	b.edgeMotion = m
 	m2 := gtk.NewEventControllerMotion()
 	m2.ConnectLeave(func() { b.peek(false) })
 	b.side.AddController(m2)
+	b.sideMotion = m2
 
 	// --- across the top ---
 	b.top = gtk.NewWindowHandle()
@@ -350,17 +356,52 @@ func (b *Browser) layout() {
 	b.strip.rebuild()
 }
 
+// relayout rebuilds the window's layout once the current event is done.
+// Rebuilding takes widgets out of the window; doing that inside the signal
+// handler of one of those widgets (the pointer entering the folded sidebar's
+// edge, or leaving the sidebar) made GTK crash.
+func (b *Browser) relayout() {
+	if b.layoutQueued {
+		return
+	}
+	b.layoutQueued = true
+	coreglib.IdleAdd(func() bool {
+		b.layoutQueued = false
+		b.layout()
+		return false
+	})
+}
+
+// peek shows the folded sidebar while the pointer is at the window's left
+// edge, and puts it away again a moment after the pointer leaves it.
 func (b *Browser) peek(on bool) {
 	s := b.app.settings
-	if !s.SidebarFolded || s.TabsSide != "left" || on == b.peeking {
+	if !s.SidebarFolded || s.TabsSide != "left" {
 		return
 	}
-	// Not while the field is in use.
-	if !on && b.omnibox.editing {
+	if b.peekTimer != 0 {
+		coreglib.SourceRemove(b.peekTimer)
+		b.peekTimer = 0
+	}
+	if on {
+		if !b.peeking {
+			b.peeking = true
+			b.relayout()
+		}
 		return
 	}
-	b.peeking = on
-	b.layout()
+	if !b.peeking {
+		return
+	}
+	b.peekTimer = coreglib.TimeoutAdd(250, func() bool {
+		b.peekTimer = 0
+		// Not while the field is in use.
+		if b.peeking && !b.omnibox.editing {
+			b.peeking = false
+			b.relayout()
+		}
+		return false
+	})
 }
 
 func (b *Browser) applyLook() {
@@ -380,7 +421,7 @@ func (b *Browser) settingChanged(key string) {
 	switch key {
 	case "tabs_side", "sidebar_folded":
 		b.peeking = false
-		b.layout()
+		b.relayout()
 	case "appearance":
 		b.applyLook()
 	case "shield":

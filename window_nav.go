@@ -20,7 +20,7 @@ func (b *Browser) focusPage() {
 	}
 	if b.peeking {
 		b.peeking = false
-		coreglib.TimeoutAdd(150, func() bool { b.layout(); return false })
+		coreglib.TimeoutAdd(150, func() bool { b.relayout(); return false })
 	}
 }
 
