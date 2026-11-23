@@ -630,6 +630,7 @@ type Engine struct {
 	wheel       string
 	youtube     string
 	pipButton   string
+	compat      string
 	ctx         C.gpointer
 }
 
@@ -654,7 +655,7 @@ func memoryBudget() (page, net uint) {
 
 func newEngine(s *Settings) *Engine {
 	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js"),
-		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js")}
+		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js")}
 	page, net := memoryBudget()
 	e.ctx = C.sb_context(C.guint(page), C.guint(net))
 	base := filepath.Join(dataDir(), "web")
@@ -776,6 +777,10 @@ func (e *Engine) contentManagerWithExtensions(ext *ExtensionManager) *webkit.Use
 	ucm.AddScript(webkit.NewUserScript(e.youtube, webkit.UserContentInjectTopFrame,
 		webkit.UserScriptInjectAtDocumentStart,
 		[]string{"*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"}, nil))
+	// Fixes for sites that expect things WebKitGTK doesn't have.
+	ucm.AddScript(webkit.NewUserScript(e.compat, webkit.UserContentInjectTopFrame,
+		webkit.UserScriptInjectAtDocumentStart,
+		[]string{"https://github.com/*"}, nil))
 	// The hover "Picture in Picture" button on videos.
 	ucm.AddScript(webkit.NewUserScript(e.pipButton, webkit.UserContentInjectAllFrames,
 		webkit.UserScriptInjectAtDocumentStart, nil, nil))
