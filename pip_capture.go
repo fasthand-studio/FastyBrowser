@@ -55,7 +55,7 @@ func fmtClock(s float64) string {
 // makeCapturePiP opens the window and starts copying. fallback runs if the
 // page doesn't allow it.
 func (b *Browser) makeCapturePiP(t *Tab, fallback func()) {
-	p := &PiP{origin: t.url, capture: &capturePiP{capW: 640, paused: false}}
+	p := &PiP{origin: t.url, capture: &capturePiP{capW: 480, paused: false}}
 	c := p.capture
 	t.pip = p
 
@@ -280,7 +280,7 @@ func (b *Browser) pipFrame(t *Tab, msg string) {
 	// Ask for sharper frames when the window has grown past what they have.
 	if pw := c.pic.Width(); pw > 0 {
 		want := min(1920, max(320, pw*c.pic.ScaleFactor()))
-		if want > c.capW+80 || want < c.capW-240 {
+		if want > c.capW+60 || want < c.capW-60 {
 			c.capW = want
 			t.run(fmt.Sprintf("window.__fastyPipCap && window.__fastyPipCap.width(%d); 0", want), nil)
 		}

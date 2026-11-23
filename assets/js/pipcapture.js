@@ -27,7 +27,7 @@
   } catch (e) { return 'tainted'; }
 
   let maxW = __MAXW__, stopped = false, busy = false, last = 0, rvfc = 0, beat = 0, tick = 0;
-  const QUALITY = 0.72, MIN_GAP = 30; // about 30 frames a second at most
+  const QUALITY = 0.65, MIN_GAP = 40; // about 25 frames a second at most
 
   function state() {
     return (v.currentTime || 0).toFixed(2) + '|' + (isFinite(v.duration) ? v.duration : 0).toFixed(2) + '|' + (v.paused ? 1 : 0);
