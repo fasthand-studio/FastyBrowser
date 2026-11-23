@@ -23,11 +23,11 @@ static WebKitMemoryPressureSettings *sb_pressure(guint limit_mb, double conserva
 // sb_context is the web context every page runs in, with a memory budget for
 // its processes. The network process gets a smaller one; it must be set
 // before any session exists.
-static gpointer sb_context(guint page_mb, guint net_mb) {
+static gpointer sb_context(guint page_mb, guint net_mb, double cons, double strict) {
 	WebKitMemoryPressureSettings *net = sb_pressure(net_mb, 0.33, 0.5);
 	webkit_network_session_set_memory_pressure_settings(net);
 	webkit_memory_pressure_settings_free(net);
-	WebKitMemoryPressureSettings *page = sb_pressure(page_mb, 0.2, 0.35);
+	WebKitMemoryPressureSettings *page = sb_pressure(page_mb, cons, strict);
 	gpointer ctx = g_object_new(WEBKIT_TYPE_WEB_CONTEXT, "memory-pressure-settings", page, NULL);
 	webkit_memory_pressure_settings_free(page);
 	return ctx;
@@ -165,11 +165,25 @@ func memoryBudget() (page, net uint) {
 	return page, page / 2
 }
 
+// pressureFractions are the shares of a page process's limit (limitMB) at
+// which WebKit starts throwing caches away (about 150 MB), then everything it
+// can (about 300 MB). WebKit's own defaults wait until a fifth and a third of
+// the limit, which let heavy pages sit at 600 MB. FASTY_PRESSURE="150,300"
+// overrides the two sizes in MB for experiments.
+func pressureFractions(limitMB uint) (cons, strict float64) {
+	softMB, hardMB := 150.0, 300.0
+	if v := os.Getenv("FASTY_PRESSURE"); v != "" {
+		fmt.Sscanf(v, "%g,%g", &softMB, &hardMB)
+	}
+	return softMB / float64(limitMB), hardMB / float64(limitMB)
+}
+
 func newEngine(s *Settings) *Engine {
 	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js"),
 		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js"), webauthn: asset("js/webauthn.js")}
 	page, net := memoryBudget()
-	e.ctx = C.sb_context(C.guint(page), C.guint(net))
+	cons, strict := pressureFractions(page)
+	e.ctx = C.sb_context(C.guint(page), C.guint(net), C.double(cons), C.double(strict))
 	base := filepath.Join(dataDir(), "web")
 	cache := filepath.Join(cacheDir(), "web")
 	e.session = webkit.NewNetworkSession(base, cache)

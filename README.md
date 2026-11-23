@@ -285,6 +285,10 @@ such as YouTube takes 600 MB or more. What keeps it down:
 - Tabs you haven't used for 30 minutes (Settings → General) go to sleep and
   give their memory back; they also sleep sooner when the system is short of
   memory.
+- A page process starts dropping caches at about 150 MB and everything it can at
+  about 300 MB (WebKit's own defaults wait until about 500 and 900 MB). On seven
+  logged-out sites this took the total from 2.5 to 3.1 GB down to about 2.1 GB,
+  for a few percent more idle CPU.
 - The back/forward page cache is off, so a page you leave is let go instead of
   being kept alive for Back. Back reloads from the HTTP cache.
 - The blocker's compiled rules are cached by content, so startup doesn't
