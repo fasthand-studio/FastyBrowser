@@ -90,27 +90,6 @@ func showAuthenticatorList(b *Browser) {
 	add := gtk.NewButtonFromIconName("list-add-symbolic")
 	add.SetTooltipText("Add an account")
 	hb.PackEnd(add)
-	pinBtn := gtk.NewToggleButton()
-	pinBtn.SetIconName("view-pin-symbolic")
-	pinBtn.SetActive(b.app.settings.AuthenticatorButton)
-	pinTip := func() {
-		if pinBtn.Active() {
-			pinBtn.SetTooltipText("Pinned to the toolbar. Click to unpin")
-		} else {
-			pinBtn.SetTooltipText("Pin the Authenticator to the toolbar")
-		}
-	}
-	pinTip()
-	pinBtn.ConnectToggled(func() {
-		pinTip()
-		b.setAuthenticatorPinned(pinBtn.Active())
-	})
-	hb.PackEnd(pinBtn)
-	unlisten := b.listenAuthPinned(func(on bool) {
-		if pinBtn.Active() != on {
-			pinBtn.SetActive(on)
-		}
-	})
 	var rebuildRef func()
 	hb.PackEnd(authFileMenu(b, func() { rebuildRef() }))
 	tv.AddTopBar(hb)
@@ -226,7 +205,6 @@ func showAuthenticatorList(b *Browser) {
 	d.ConnectClosed(func() {
 		closed = true
 		releaseToasts()
-		unlisten()
 		v.Lock() // the codes are gone from memory; a PIN is asked again next time
 	})
 	rebuild()
