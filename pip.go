@@ -239,8 +239,9 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 			esc, info.Time, max(info.Rate, 0.1), min(max(info.Volume, 0), 1)), info.Page)
 	}
 	// Pause the tab's copy, and once the mirror has a video, fit and start it.
-	if info.Kind != "frame" { // a frame's video was paused by the frame itself
+	if info.Kind != "frame" { // a frame's video was paused, and covered, by the frame itself
 		t.run(pauseJS, nil)
+		t.run(`window.__fastyPipUI && window.__fastyPipUI.on(); 0`, nil)
 	}
 	tries, ready := 0, false
 	coreglib.TimeoutAdd(700, func() bool {
@@ -440,6 +441,9 @@ func (b *Browser) closeMirror(t *Tab, p *PiP, resume bool) {
 	finish := func(out string) {
 		p.win.Destroy()
 		b.strip.refresh(t)
+		if t.view != nil {
+			t.run(`window.__fastyPipUI && window.__fastyPipUI.off(); 0`, nil)
+		}
 		if !resume || t.view == nil {
 			return
 		}
