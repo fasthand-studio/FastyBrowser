@@ -461,7 +461,7 @@ func authenticatorGroup(b *Browser) *adw.PreferencesGroup {
 
 	pinned := adw.NewSwitchRow()
 	pinned.SetTitle("Show in the toolbar")
-	pinned.SetSubtitle("An Authenticator button next to the extensions button (Ctrl+Shift+A opens it anywhere)")
+	pinned.SetSubtitle("Off by default. Adds an Authenticator button next to the extensions button (Ctrl+Shift+A opens it anywhere)")
 	pinned.SetActive(b.app.settings.AuthenticatorButton)
 	pinned.NotifyProperty("active", func() { b.setAuthenticatorPinned(pinned.Active()) })
 	b.listenAuthPinned(func(on bool) {
@@ -808,7 +808,7 @@ func (b *Browser) setAuthenticatorPinned(on bool) {
 	if b.app.settings.AuthenticatorButton == on {
 		return
 	}
-	b.app.settings.Set("authenticator_button", func(d *SettingsData) { d.AuthenticatorButton = on })
+	b.app.settings.Set("authenticator_pinned", func(d *SettingsData) { d.AuthenticatorButton = on })
 }
 
 // listenAuthPinned calls fn whenever the pinned state changes. The returned
@@ -816,7 +816,7 @@ func (b *Browser) setAuthenticatorPinned(on bool) {
 func (b *Browser) listenAuthPinned(fn func(on bool)) func() {
 	stopped := false
 	b.app.settings.Listen(func(key string) {
-		if key == "authenticator_button" && !stopped {
+		if key == "authenticator_pinned" && !stopped {
 			fn(b.app.settings.AuthenticatorButton)
 		}
 	})
