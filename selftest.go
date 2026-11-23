@@ -15,6 +15,7 @@ package main
 //	passkey allow|deny [N]  answer the passkey question on screen (N: which account, from 1)
 //	auth open | add ISSUER|ACCOUNT|SECRET | pin on 1234 | pin off 1234 | lock   Authenticator
 //	toast TEXT         show a toast (it should appear inside an open dialog)
+//	pipinfo            frames shown so far and the capture width of the copied-video window
 //	copyaddr           select all in the address field and copy it; the clipboard text goes in the log
 //	eval JS            run in the page; the result goes in the log
 //	state              tabs, the current one, and how it is doing
@@ -210,6 +211,18 @@ func runSelftest(b *Browser, script string) {
 			}
 		case "toast":
 			b.toast(arg, 30)
+		case "pipinfo":
+			found := false
+			for _, t := range b.tabs {
+				if t.pip != nil && t.pip.capture != nil {
+					c := t.pip.capture
+					log = append(log, fmt.Sprintf("pipinfo: frames=%d capW=%d paused=%v dur=%.1f parked=%v current=%v", c.frames, c.capW, c.paused, c.duration, c.parked, t == b.current))
+					found = true
+				}
+			}
+			if !found {
+				log = append(log, "pipinfo: no copied-video window")
+			}
 		case "copyaddr":
 			b.omnibox.entry.GrabFocus()
 			b.omnibox.entry.SelectRegion(0, -1)

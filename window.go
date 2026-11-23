@@ -46,6 +46,7 @@ type Browser struct {
 	banner      *gtk.Revealer
 	bannerLabel *gtk.Label
 	toasts      *adw.ToastOverlay
+	keep        *gtk.Fixed         // where the page of a copied video waits, mapped but unseen, while another tab is in front
 	dialogToast []func(*adw.Toast) // toast sinks of the dialogs on screen, innermost last
 	card        *gtk.Box
 	side        *gtk.Box
@@ -96,6 +97,16 @@ func newBrowser(app *App) *Browser {
 	b.stack.AddNamed(b.blank, "blank")
 	b.overlay = gtk.NewOverlay()
 	b.overlay.SetChild(b.stack)
+	// A page whose video is being copied into the pop-up has to stay "on
+	// screen" for WebKit, or it throttles the page to about one frame a second.
+	b.keep = gtk.NewFixed()
+	b.keep.SetCanTarget(false)
+	b.keep.SetCanFocus(false)
+	b.keep.SetOpacity(0)
+	b.keep.SetHAlign(gtk.AlignStart)
+	b.keep.SetVAlign(gtk.AlignStart)
+	b.overlay.AddOverlay(b.keep)
+	b.overlay.SetClipOverlay(b.keep, true)
 	b.progress = gtk.NewProgressBar()
 	b.progress.SetVAlign(gtk.AlignStart)
 	b.progress.SetCanTarget(false)

@@ -138,6 +138,10 @@ func (b *Browser) selectTab(t *Tab) {
 	if b.current != nil && b.current.picking {
 		b.stopPicking()
 	}
+	if prev := b.current; prev != nil && prev != t {
+		b.parkView(prev) // its video may be playing in the pop-up
+	}
+	b.unparkView(t)
 	b.current = t
 	if x := b.app.extensions; x != nil && x.anyBackground() {
 		x.fire("tabs.onActivated", map[string]any{"tabId": t.num, "windowId": 1})

@@ -156,21 +156,35 @@ effort, not a guarantee.
 
 ## Picture in picture
 
-WebKitGTK has no picture-in-picture of its own, so Fasty provides it:
+WebKitGTK has no picture-in-picture of its own, so Fasty provides it, the way
+Firefox does: the video stays in its tab, playing in its own page, and its
+picture is copied out into a small window. No second copy of the page is
+loaded.
 
 - Point at any video and a small PiP button appears in its corner. Click it, or
   press `Ctrl+Shift+P`, to pop the video out into a small window that stays on
   top (on KDE; elsewhere use your window manager's "always on top").
-- For YouTube and videos with a direct file address, the pop-up is a small
-  video-only view. The tab keeps its page (comments, recommendations) and its
-  video area says "This video is playing in Picture-in-Picture"; click it to
-  bring the video back.
-- When you bring the video back, the tab picks up where the pop-up got to,
-  playing or paused as it was. If the tab has moved to another page meanwhile,
-  nothing is resumed on the new page.
-- Videos from streams that can't be re-opened in a second view fall back to
-  moving the tab's whole page into the pop-up, showing only the video.
-- The pop-up is a second view, so it uses extra memory while open.
+- The tab keeps its page, and its video area says "This video is playing in
+  Picture-in-Picture". The sound keeps coming from the tab. Click the video
+  area to close the pop-up.
+- The pop-up has a title bar that appears when you move the mouse over it, with
+  full screen, "Back to Tab" and close, and play/pause, a seek bar and the
+  time along the bottom. These act on the page's own video. Space or `K`
+  plays and pauses, the arrow keys skip 5 seconds, `F` or a double click is
+  full screen.
+- It works while another tab is in front: the page of a tab whose video is
+  being copied is kept on screen (unseen) so WebKit doesn't throttle it.
+- How it works: `assets/js/pipcapture.js` draws each frame small (about 30 a
+  second, sharper if you make the window bigger) onto a canvas, encodes it as a
+  JPEG and sends it to the browser, which shows it in the window
+  (`pip_capture.go`). It costs some CPU in the page while it runs: about a
+  quarter of a core on a 1080p YouTube video in testing.
+- Videos whose pixels the page doesn't let scripts read (some cross-origin
+  files, protected video) can't be copied. A plain video file then plays in a
+  small video-only view (`pip_mirror.go`, which uses a second view and some
+  extra memory); anything else moves the tab's whole page into the pop-up with
+  only the video showing.
+- If the tab goes to another page, the pop-up closes.
 
 ## Passkeys
 
@@ -370,9 +384,10 @@ adblock-ffi/          Rust crate that compiles filter lists to WebKit rules
 shield_rules.go       filter lists and the rules built from them
 shield.go             compiling rules into WebKit filters and refreshing them
 
-pip.go                picture in picture: the window and its controls
-pip_mirror.go         the video-only pop-up
-pip_scripts.go        the scripts it runs inside pages
+pip.go                picture in picture: choosing a way, closing, the old whole-page window
+pip_capture.go        the pop-up that shows frames copied from the page
+pip_mirror.go         the fallback video-only view for plain video files
+pip_scripts.go        the scripts the fallbacks run inside pages
 pip_kwin.go           keeping the pop-up on top on KDE
 webauthn.go           passkeys: requests, asking, making and signing
 webauthn_store.go     passkeys saved on disk, encrypted
@@ -415,7 +430,8 @@ assets/style.css      the stylesheet
 assets/js/            scripts the browser runs inside pages:
                         picker.js (element picker), wheel.js (smooth wheel),
                         youtube.js (YouTube ad data), pipbutton.js (the
-                        Picture-in-Picture button), webauthn.js (passkeys),
+                        Picture-in-Picture button), pipcapture.js (copying
+                        the video out), webauthn.js (passkeys),
                         compat.js (site fixes), reader.js, webext.js and
                         ext_store.js (extensions)
 assets/filters/       bundled EasyList, EasyPrivacy and hosts lists

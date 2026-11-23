@@ -23,6 +23,7 @@ type PiP struct {
 	resting     coreglib.SourceHandle // hides the bar
 	mirror      *webkit.WebView       // set when only the video plays here; the tab keeps its page
 	origin      string                // the tab's page when the video went out
+	capture     *capturePiP           // set when the picture is copied out of the page (pip_capture.go)
 }
 
 // evalOn runs script in any web view and hands the result to done.
@@ -44,6 +45,9 @@ func evalOn(view *webkit.WebView, script string, done func(string)) {
 // wake shows the bar, and hides it again after two still seconds.
 func (p *PiP) wake(t *Tab) {
 	p.bar.SetRevealChild(true)
+	if p.capture != nil {
+		p.capture.controls.SetRevealChild(true)
+	}
 	p.rest(t, 2000)
 }
 
@@ -56,6 +60,9 @@ func (p *PiP) rest(t *Tab, ms uint) {
 		p.resting = 0
 		if t.pip == p && !p.onBar {
 			p.bar.SetRevealChild(false)
+			if p.capture != nil {
+				p.capture.controls.SetRevealChild(false)
+			}
 		}
 		return false
 	})
@@ -78,12 +85,21 @@ func (b *Browser) popOut(t *Tab) {
 		if t.pip != nil || t.view == nil || b.index(t) < 0 {
 			return
 		}
-		switch info.Kind {
-		case "youtube", "direct", "frame":
-			b.makeMirrorPiP(t, info)
-		default:
-			b.makePiP(t)
+		// Copy the picture out of the page when the page allows it (the video
+		// keeps playing in its tab); otherwise another way.
+		other := func() {
+			switch info.Kind {
+			case "youtube", "direct", "frame":
+				b.makeMirrorPiP(t, info)
+			default:
+				b.makePiP(t)
+			}
 		}
+		if info.Kind == "frame" {
+			other()
+			return
+		}
+		b.makeCapturePiP(t, other)
 	})
 }
 
@@ -208,6 +224,10 @@ func (b *Browser) popIn(t *Tab) {
 	if p == nil {
 		return
 	}
+	if p.capture != nil {
+		b.closeCapture(t, p, true)
+		return
+	}
 	if p.mirror != nil {
 		b.closeMirror(t, p, true)
 		return
@@ -242,6 +262,10 @@ func (b *Browser) popIn(t *Tab) {
 func (b *Browser) dropPiP(t *Tab) {
 	p := t.pip
 	if p == nil {
+		return
+	}
+	if p.capture != nil {
+		b.closeCapture(t, p, false)
 		return
 	}
 	if p.mirror != nil {

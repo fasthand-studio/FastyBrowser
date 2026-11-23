@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 
 	javascriptcore "github.com/diamondburned/gotk4-webkitgtk/pkg/javascriptcore/v6"
 	webkit "github.com/diamondburned/gotk4-webkitgtk/pkg/webkit/v6"
@@ -94,7 +95,17 @@ func (t *Tab) wire(view *webkit.WebView) {
 	view.SetZoomLevel(a.zoomFor(t.url))
 	view.SetVExpand(true)
 	view.SetHExpand(true)
-	t.ucm.ConnectScriptMessageReceived(func(v *javascriptcore.Value) { t.onMessage(v.ToJson(0)) })
+	t.ucm.ConnectScriptMessageReceived(func(v *javascriptcore.Value) {
+		// Picture-in-picture frames arrive as plain strings, often 100 KB: don't
+		// turn them into JSON just to look at the first letters.
+		if v.IsString() {
+			if s := v.String(); strings.HasPrefix(s, "PIPF|") || strings.HasPrefix(s, "PIPS|") {
+				t.b.pipFrame(t, s)
+				return
+			}
+		}
+		t.onMessage(v.ToJson(0))
+	})
 	view.NotifyProperty("title", func() {
 		if s := view.Title(); s != "" {
 			t.title = s
@@ -140,6 +151,10 @@ func (t *Tab) wire(view *webkit.WebView) {
 				t.url = u
 				// The alias ends once a page on another site has really loaded
 				// (not on the address updates that arrive before it does).
+				if t.pip != nil && t.pip.capture != nil && t.pip.origin != "" && u != t.pip.origin {
+					// The tab went to another page: the video being copied is gone.
+					t.b.popIn(t)
+				}
 				if t.aliasLabel != "" && hostOf(u) != aliasHost {
 					t.aliasLabel, t.aliasUser = "", ""
 				}
