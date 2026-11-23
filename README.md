@@ -118,6 +118,7 @@ browser, so blocked ad and tracker requests are never made.
 | **Hiding** | Pick an element to hide permanently, managed per site |
 | **Library** | Searchable bookmarks, history and downloads panels |
 | **Media** | Picture-in-picture and remembered camera, microphone and location permissions |
+| **Sign-in** | An Authenticator for one-time codes (Settings > Privacy), with an optional PIN, and passkeys (WebAuthn) kept encrypted on this computer |
 | **Look** | System, light or dark theme with GTK 4 / libadwaita widgets |
 | **Extensions** | WebExtension-style add-ons: content scripts, background pages, browser APIs, and an extension store |
 
@@ -251,6 +252,10 @@ pip_kwin.go           keeping the pop-up on top on KDE
 webauthn.go           passkeys: requests, asking, making and signing
 webauthn_store.go     passkeys saved on disk, encrypted
 webauthn_cbor.go      the CBOR a passkey needs
+
+authenticator.go      one-time codes (TOTP), the encrypted vault and the optional PIN
+authenticator_ui.go   the Authenticator window and its Settings rows
+authenticator_test.go RFC 6238 test vectors and vault/PIN tests
 
 agent.go              JSON-over-Unix-socket control interface
 agent_ext.go          its extension commands

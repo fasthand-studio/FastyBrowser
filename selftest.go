@@ -13,6 +13,7 @@ package main
 //	type TEXT          into the address field (or the new-tab field), then Return
 //	fill TEXT          the same, without Return
 //	passkey allow|deny [N]  answer the passkey question on screen (N: which account, from 1)
+//	auth open | add ISSUER|ACCOUNT|SECRET | pin on 1234 | pin off 1234 | lock   Authenticator
 //	copyaddr           select all in the address field and copy it; the clipboard text goes in the log
 //	eval JS            run in the page; the result goes in the log
 //	state              tabs, the current one, and how it is doing
@@ -168,6 +169,37 @@ func runSelftest(b *Browser, script string) {
 				log = append(log, "passkey: answered")
 			} else {
 				log = append(log, "passkey: no question on screen")
+			}
+		case "auth":
+			v := b.app.authenticatorVault()
+			f := strings.SplitN(arg, " ", 2)
+			rest := ""
+			if len(f) > 1 {
+				rest = f[1]
+			}
+			switch f[0] {
+			case "open":
+				showAuthenticator(b)
+			case "add":
+				p := strings.Split(rest, "|")
+				if len(p) == 3 {
+					v.Open()
+					err := v.Save(authEntry{Issuer: p[0], Account: p[1], Secret: p[2]})
+					log = append(log, fmt.Sprintf("auth add: %v", err))
+				}
+			case "pin":
+				p := strings.Fields(rest)
+				if len(p) == 2 && p[0] == "on" {
+					v.Open()
+					log = append(log, fmt.Sprintf("auth pin on: %v", v.SetPIN(p[1])))
+				} else if len(p) == 2 && p[0] == "off" {
+					log = append(log, fmt.Sprintf("auth pin off: %v", v.RemovePIN(p[1])))
+				}
+			case "lock":
+				v.Lock()
+				log = append(log, fmt.Sprintf("auth locked: %v, has pin: %v", !v.unlocked(), v.hasPIN()))
+			case "unlock":
+				log = append(log, fmt.Sprintf("auth unlock: %v", v.Unlock(rest)))
 			}
 		case "copyaddr":
 			b.omnibox.entry.GrabFocus()

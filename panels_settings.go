@@ -162,6 +162,7 @@ func showSettings(b *Browser) {
 	g.Add(switchRow(b, "Remove tracking parameters from links", "clean_links", func(d *SettingsData) *bool { return &d.CleanLinks }, false))
 	g.Add(switchRow(b, "Prevent cross-site tracking", "tracking_prevention", func(d *SettingsData) *bool { return &d.TrackingPrevention }, true))
 	page.Add(g)
+	page.Add(authenticatorGroup(b))
 	page.Add(passkeysGroup(b))
 	if len(s.ShieldPaused) > 0 {
 		g := adw.NewPreferencesGroup()

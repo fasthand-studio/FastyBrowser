@@ -24,6 +24,7 @@ type App struct {
 	curtain     *Curtain
 	engine      *Engine
 	passkeys    *passkeyStore
+	authVault   *authVault
 	shield      *Shield
 	downloads   *Downloads
 	extensions  *ExtensionManager
