@@ -3,7 +3,8 @@
 // browser to pop the video out into its own window.
 (() => {
   'use strict';
-  if (window.top !== window || window.__fastyPipButton) return;
+  if (window.__fastyPipButton) return;
+  const inFrame = window.top !== window;
   window.__fastyPipButton = true;
 
   const MIN = 200; // ignore tiny videos (ads, previews, icons)
@@ -29,7 +30,20 @@
       'background:rgba(20,20,20,.78);box-shadow:none;';
     btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
-      try { window.webkit.messageHandlers.officeVeil.postMessage({ _ch: 'pip' }); } catch (err) { /* ignore */ }
+      const v = current;
+      document.querySelectorAll('video[data-fasty-pip-target]').forEach(e => e.removeAttribute('data-fasty-pip-target'));
+      if (v) v.setAttribute('data-fasty-pip-target', '');
+      const msg = { _ch: 'pip' };
+      if (inFrame && v) {
+        // A video inside an embedded frame: the browser re-opens the frame's
+        // own page in the pop-up, from where the video is now.
+        msg.frame = location.href;
+        msg.time = v.currentTime || 0;
+        msg.rate = v.playbackRate || 1;
+        msg.paused = v.paused;
+        try { v.pause(); } catch (err) { /* ignore */ }
+      }
+      try { window.webkit.messageHandlers.officeVeil.postMessage(msg); } catch (err) { /* ignore */ }
       hide();
     }, true);
     btn.addEventListener('mousedown', (e) => e.stopPropagation(), true);
@@ -40,10 +54,20 @@
   function hide() { if (btn) btn.style.display = 'none'; current = null; }
 
   function videoAt(x, y) {
-    for (const el of document.elementsFromPoint(x, y)) {
-      if (el.tagName === 'VIDEO') return el;
-    }
-    return null;
+    // elementsFromPoint, also looking inside shadow roots (custom players).
+    const seen = new Set();
+    const search = (root) => {
+      for (const el of root.elementsFromPoint(x, y)) {
+        if (el.tagName === 'VIDEO') return el;
+        if (el.shadowRoot && !seen.has(el.shadowRoot)) {
+          seen.add(el.shadowRoot);
+          const f = search(el.shadowRoot);
+          if (f) return f;
+        }
+      }
+      return null;
+    };
+    return search(document);
   }
 
   document.addEventListener('mousemove', (e) => {

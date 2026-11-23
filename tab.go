@@ -405,9 +405,19 @@ func (t *Tab) onMessage(body string) {
 				t.b.app.extensions.HandleWebExternal(body, t)
 			}
 		case "pip":
-			if t.pip != nil {
+			var m struct {
+				Frame  string  `json:"frame"`
+				Time   float64 `json:"time"`
+				Rate   float64 `json:"rate"`
+				Paused bool    `json:"paused"`
+			}
+			json.Unmarshal([]byte(body), &m)
+			switch {
+			case t.pip != nil:
 				t.b.popIn(t)
-			} else {
+			case m.Frame != "":
+				t.b.popOutFrame(t, pipInfo{Kind: "frame", Page: m.Frame, Time: m.Time, Rate: m.Rate, Paused: m.Paused})
+			default:
 				t.b.popOut(t)
 			}
 		case "extStore":

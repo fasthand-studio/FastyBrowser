@@ -48,7 +48,7 @@ const pipInfoJS = `(() => {
   if (!vs.length) return JSON.stringify({kind: 'none'});
   const area = v => v.clientWidth * v.clientHeight;
   vs.sort((a, b) => (a.paused - b.paused) || (area(b) - area(a)));
-  const v = vs[0];
+  const v = document.querySelector('video[data-fasty-pip-target]') || vs[0];
   const u = new URL(location.href);
   let id = '';
   if (/(^|\.)youtube\.com$/.test(u.hostname)) {
@@ -123,7 +123,7 @@ const videoJS = `(() => {
   if (!vs.length) return 'none';
   const area = v => v.clientWidth * v.clientHeight;
   vs.sort((a, b) => (a.paused - b.paused) || (area(b) - area(a)));
-  const v = vs[0];
+  const v = document.querySelector('video[data-fasty-pip-target]') || vs[0];
   if (!v.hasAttribute('data-fasty-pip')) {
     document.querySelectorAll('[data-fasty-pip],[data-fasty-pip-up]').forEach(e => {
       e.removeAttribute('data-fasty-pip'); e.removeAttribute('data-fasty-pip-up'); });
@@ -184,7 +184,7 @@ func (b *Browser) popOut(t *Tab) {
 			return
 		}
 		switch info.Kind {
-		case "youtube", "direct":
+		case "youtube", "direct", "frame":
 			b.makeMirrorPiP(t, info)
 		default:
 			b.makePiP(t)
@@ -227,7 +227,9 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 	view.ConnectLeaveFullscreen(func() bool { p.win.Unfullscreen(); return true })
 
 	start := int(info.Time)
-	if info.Kind == "youtube" {
+	if info.Kind == "frame" {
+		view.LoadURI(info.Page)
+	} else if info.Kind == "youtube" {
 		view.LoadURI(fmt.Sprintf("https://www.youtube.com/watch?v=%s&t=%ds", info.ID, start))
 	} else {
 		esc := strings.NewReplacer("&", "&amp;", `"`, "&quot;", "<", "&lt;").Replace(info.Src)
@@ -237,7 +239,9 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 			esc, info.Time, max(info.Rate, 0.1), min(max(info.Volume, 0), 1)), info.Page)
 	}
 	// Pause the tab's copy, and once the mirror has a video, fit and start it.
-	t.run(pauseJS, nil)
+	if info.Kind != "frame" { // a frame's video was paused by the frame itself
+		t.run(pauseJS, nil)
+	}
 	tries, ready := 0, false
 	coreglib.TimeoutAdd(700, func() bool {
 		if t.pip != p || ready {
@@ -249,7 +253,11 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 				return
 			}
 			ready = true
-			evalOn(view, `(() => { const v = document.querySelector('video'); if (v) v.play().catch(() => {}); return 0; })()`, nil)
+			seek := ""
+			if info.Kind == "frame" {
+				seek = fmt.Sprintf("try { v.currentTime = %f; v.playbackRate = %f; } catch (e) {} ", info.Time, max(info.Rate, 0.1))
+			}
+			evalOn(view, `(() => { const v = document.querySelector('video'); if (v) { `+seek+`v.play().catch(() => {}); } return 0; })()`, nil)
 		})
 		return tries < 30
 	})
@@ -491,4 +499,17 @@ func keepAbove(title string) {
 	}
 	time.Sleep(time.Second)
 	call("/Scripting", "org.kde.kwin.Scripting.unloadScript", plugin)
+}
+
+// popOutFrame pops out a video that lives in an embedded frame: the frame's
+// own page opens in the pop-up and picks up from where the video was.
+func (b *Browser) popOutFrame(t *Tab, info pipInfo) {
+	if t == nil || t.view == nil || t.pip != nil || b.index(t) < 0 {
+		return
+	}
+	if !strings.HasPrefix(info.Page, "http://") && !strings.HasPrefix(info.Page, "https://") {
+		b.toast("This video can't be popped out", 2)
+		return
+	}
+	b.makeMirrorPiP(t, info)
 }

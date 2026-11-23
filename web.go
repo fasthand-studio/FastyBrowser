@@ -738,7 +738,7 @@ func (e *Engine) contentManagerWithExtensions(ext *ExtensionManager) *webkit.Use
 		webkit.UserScriptInjectAtDocumentStart,
 		[]string{"*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"}, nil))
 	// The hover "Picture in Picture" button on videos.
-	ucm.AddScript(webkit.NewUserScript(e.pipButton, webkit.UserContentInjectTopFrame,
+	ucm.AddScript(webkit.NewUserScript(e.pipButton, webkit.UserContentInjectAllFrames,
 		webkit.UserScriptInjectAtDocumentStart, nil, nil))
 	if e.settings.SmoothScrolling {
 		ucm.AddScript(webkit.NewUserScript(e.wheel, webkit.UserContentInjectAllFrames,
