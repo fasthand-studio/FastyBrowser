@@ -254,8 +254,10 @@ webauthn_store.go     passkeys saved on disk, encrypted
 webauthn_cbor.go      the CBOR a passkey needs
 
 authenticator.go      one-time codes (TOTP), the encrypted vault and the optional PIN
-authenticator_ui.go   the Authenticator window and its Settings rows
+authenticator_ui.go   the Authenticator window, import/export and its Settings rows
+authenticator_io.go   import and export: text, locked files, Aegis, 2FAS, Google, Bitwarden
 authenticator_test.go RFC 6238 test vectors and vault/PIN tests
+authenticator_io_test.go import/export tests
 
 agent.go              JSON-over-Unix-socket control interface
 agent_ext.go          its extension commands

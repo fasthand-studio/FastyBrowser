@@ -5,14 +5,17 @@ package main
 // the code after it. Click a code to copy it.
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/cairo"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
@@ -87,6 +90,8 @@ func showAuthenticatorList(b *Browser) {
 	add := gtk.NewButtonFromIconName("list-add-symbolic")
 	add.SetTooltipText("Add an account")
 	hb.PackEnd(add)
+	var rebuildRef func()
+	hb.PackEnd(authFileMenu(b, func() { rebuildRef() }))
 	tv.AddTopBar(hb)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 10)
@@ -169,6 +174,7 @@ func showAuthenticatorList(b *Browser) {
 		update()
 	}
 
+	rebuildRef = rebuild
 	editor = func(e *authEntry) { showAuthEntryEditor(b, e, rebuild) }
 	add.ConnectClicked(func() { editor(nil) })
 	emptyAdd.ConnectClicked(func() { editor(nil) })
@@ -564,4 +570,190 @@ func removeAuthPIN(b *Browser, cancelled func()) {
 		entry.GrabFocus()
 	}
 	ask("")
+}
+
+// ---- import and export ------------------------------------------------------------------
+
+func authFileMenu(b *Browser, changed func()) *gtk.MenuButton {
+	m := gtk.NewMenuButton()
+	m.SetIconName("document-save-symbolic")
+	m.SetTooltipText("Import or export accounts")
+	pop := gtk.NewPopover()
+	col := gtk.NewBox(gtk.OrientationVertical, 2)
+	imp := gtk.NewButtonWithLabel("Import…")
+	imp.AddCSSClass("flat")
+	exp := gtk.NewButtonWithLabel("Export…")
+	exp.AddCSSClass("flat")
+	col.Append(imp)
+	col.Append(exp)
+	pop.SetChild(col)
+	m.SetPopover(pop)
+	imp.ConnectClicked(func() { pop.Popdown(); importAuthFile(b, changed) })
+	exp.ConnectClicked(func() { pop.Popdown(); exportAuthFile(b) })
+	return m
+}
+
+func authProblem(b *Browser, heading, msg string) {
+	d := adw.NewAlertDialog(heading, capitalFirst(msg)+".")
+	d.AddResponse("ok", "OK")
+	d.SetCloseResponse("ok")
+	d.Present(b)
+}
+
+// importAuthFile asks for a file and adds the accounts in it.
+func importAuthFile(b *Browser, changed func()) {
+	fd := gtk.NewFileDialog()
+	fd.SetTitle("Import accounts")
+	fd.Open(context.Background(), &b.Window, func(res gio.AsyncResulter) {
+		var f gio.Filer
+		var err error
+		try(func() { f, err = fd.OpenFinish(res) })
+		if err != nil || f == nil {
+			return
+		}
+		path := f.Path()
+		if info, e := os.Stat(path); e != nil || info.Size() > 5<<20 {
+			authProblem(b, "Couldn't import", "that file is missing or too big")
+			return
+		}
+		data, e := os.ReadFile(path)
+		if e != nil {
+			authProblem(b, "Couldn't import", e.Error())
+			return
+		}
+		finishImport(b, data, "", changed)
+	})
+}
+
+func finishImport(b *Browser, data []byte, password string, changed func()) {
+	v := b.app.authenticatorVault()
+	in, err := parseImport(data, password)
+	if err == errNeedPassword {
+		d := adw.NewAlertDialog("Password needed", "This file is locked. Enter the password you chose when you exported it.")
+		d.AddResponse("cancel", "Cancel")
+		d.AddResponse("open", "Import")
+		d.SetResponseAppearance("open", adw.ResponseSuggested)
+		d.SetDefaultResponse("open")
+		d.SetCloseResponse("cancel")
+		pw := gtk.NewPasswordEntry()
+		pw.SetShowPeekIcon(true)
+		pw.SetObjectProperty("activates-default", true)
+		d.SetExtraChild(pw)
+		d.ConnectResponse(func(r string) {
+			if r == "open" {
+				finishImport(b, data, pw.Text(), changed)
+			}
+		})
+		d.Present(b)
+		pw.GrabFocus()
+		return
+	}
+	if err != nil {
+		authProblem(b, "Couldn't import", err.Error())
+		if password != "" && strings.Contains(err.Error(), "wrong password") {
+			finishImport(b, data, "", changed)
+		}
+		return
+	}
+	added, skipped, err := mergeImported(v, in)
+	changed()
+	switch {
+	case err != nil:
+		authProblem(b, "Import stopped", err.Error())
+	case skipped > 0:
+		b.toast(fmt.Sprintf("Imported %d accounts (%d were already here)", added, skipped), 4)
+	default:
+		b.toast(fmt.Sprintf("Imported %d accounts", added), 3)
+	}
+}
+
+// exportAuthFile writes the accounts to a file, locked with a password or in the clear.
+func exportAuthFile(b *Browser) {
+	v := b.app.authenticatorVault()
+	entries := v.List()
+	if len(entries) == 0 {
+		b.toast("There are no accounts to export", 2)
+		return
+	}
+	d := adw.NewAlertDialog("Export accounts", "A locked file needs the password you choose to be read. An unprotected file can be read by anyone who gets it: they could use all of your codes.")
+	d.AddResponse("cancel", "Cancel")
+	d.AddResponse("plain", "Unprotected File")
+	d.AddResponse("locked", "Lock with a Password…")
+	d.SetResponseAppearance("plain", adw.ResponseDestructive)
+	d.SetResponseAppearance("locked", adw.ResponseSuggested)
+	d.SetDefaultResponse("locked")
+	d.SetCloseResponse("cancel")
+	d.ConnectResponse(func(r string) {
+		switch r {
+		case "plain":
+			saveAuthExport(b, "fasty-authenticator.txt", exportPlain(entries))
+		case "locked":
+			askExportPassword(b, "", func(pw string) {
+				data, err := exportLocked(entries, pw)
+				if err != nil {
+					authProblem(b, "Couldn't export", err.Error())
+					return
+				}
+				saveAuthExport(b, "fasty-authenticator-locked.json", data)
+			})
+		}
+	})
+	d.Present(b)
+}
+
+func askExportPassword(b *Browser, note string, ok func(string)) {
+	body := "Choose a password for the file (at least 6 characters). It can't be recovered if you forget it."
+	if note != "" {
+		body = note
+	}
+	d := adw.NewAlertDialog("Lock the file", body)
+	d.AddResponse("cancel", "Cancel")
+	d.AddResponse("go", "Export")
+	d.SetResponseAppearance("go", adw.ResponseSuggested)
+	d.SetDefaultResponse("go")
+	d.SetCloseResponse("cancel")
+	col := gtk.NewBox(gtk.OrientationVertical, 8)
+	one := gtk.NewPasswordEntry()
+	one.SetShowPeekIcon(true)
+	one.SetObjectProperty("placeholder-text", "Password")
+	two := gtk.NewPasswordEntry()
+	two.SetObjectProperty("placeholder-text", "Password again")
+	two.SetObjectProperty("activates-default", true)
+	col.Append(one)
+	col.Append(two)
+	d.SetExtraChild(col)
+	d.ConnectResponse(func(r string) {
+		if r != "go" {
+			return
+		}
+		switch {
+		case one.Text() != two.Text():
+			askExportPassword(b, "The two passwords don't match.", ok)
+		case len(one.Text()) < 6:
+			askExportPassword(b, "Use a password of at least 6 characters.", ok)
+		default:
+			ok(one.Text())
+		}
+	})
+	d.Present(b)
+	one.GrabFocus()
+}
+
+func saveAuthExport(b *Browser, name string, data []byte) {
+	fd := gtk.NewFileDialog()
+	fd.SetTitle("Save exported accounts")
+	fd.SetInitialName(name)
+	fd.Save(context.Background(), &b.Window, func(res gio.AsyncResulter) {
+		var f gio.Filer
+		var err error
+		try(func() { f, err = fd.SaveFinish(res) })
+		if err != nil || f == nil {
+			return
+		}
+		if err := os.WriteFile(f.Path(), data, 0o600); err != nil {
+			authProblem(b, "Couldn't save", err.Error())
+			return
+		}
+		b.toast("Exported to "+f.Path(), 4)
+	})
 }

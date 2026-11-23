@@ -195,6 +195,9 @@ func runSelftest(b *Browser, script string) {
 				} else if len(p) == 2 && p[0] == "off" {
 					log = append(log, fmt.Sprintf("auth pin off: %v", v.RemovePIN(p[1])))
 				}
+			case "exportdlg":
+				v.Open()
+				exportAuthFile(b)
 			case "lock":
 				v.Lock()
 				log = append(log, fmt.Sprintf("auth locked: %v, has pin: %v", !v.unlocked(), v.hasPIN()))
