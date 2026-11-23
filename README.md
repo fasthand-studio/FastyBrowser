@@ -327,6 +327,11 @@ and it does all of them in one go.
 For scripts: `./install.sh --yes --default-browser no --engine duckduckgo
 --import none`. `./install.sh --uninstall` removes the program and keeps your data.
 
+`packaging/make-packages.sh` then builds a `.deb` (Debian, Ubuntu), an `.rpm`
+(Fedora) and an AppImage from the same build. The packages pull in WebKitGTK, GTK 4
+and libadwaita through the system's package manager. The AppImage carries only
+Fasty: those libraries must already be on the system.
+
 **Which systems.** The program is built on Arch against glibc 2.39, so it needs
 a system that new or newer: Ubuntu 24.04+, Debian 13+, Fedora 40+, current Arch.
 The installer says so, and refuses by default, on anything older.
