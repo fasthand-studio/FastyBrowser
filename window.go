@@ -71,6 +71,7 @@ type Browser struct {
 	saving      coreglib.SourceHandle
 	w0          int
 	extButtons  []*gtk.Button
+	authBtn     *gtk.Button // the Authenticator icon next to the extensions button
 }
 
 func newBrowser(app *App) *Browser {
@@ -188,6 +189,8 @@ func newBrowser(app *App) *Browser {
 	extBtn.AddCSSClass("flat")
 	extBtn.ConnectClicked(func() { showExtensionsPanel(b) })
 	b.sideFoot.Append(extBtn)
+	b.authBtn = b.authenticatorButton()
+	b.sideFoot.Append(b.authBtn)
 	b.dlButton = gtk.NewButtonFromIconName("folder-download-symbolic")
 	b.dlButton.SetTooltipText("Downloads (Ctrl+Shift+J)")
 	b.dlButton.AddCSSClass("flat")

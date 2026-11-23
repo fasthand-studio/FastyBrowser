@@ -113,6 +113,7 @@ func (b *Browser) keys() {
 		{C, gdk.KEY_p}:                b.printPage,
 		{C | S, gdk.KEY_p}:            b.togglePiP,
 		{C | S, gdk.KEY_e}:            func() { showExtensionsPanel(b) },
+		{C | S, gdk.KEY_a}:            func() { showAuthenticator(b) },
 		{C | A, gdk.KEY_l}:            func() { showSettings(b) },
 		{C, gdk.KEY_question}:         b.showShortcuts,
 		{C, gdk.KEY_q}:                b.app.quitAll,
@@ -198,7 +199,7 @@ func (b *Browser) showShortcuts() {
 		{"Ctrl+Alt+B", "Bookmarks"}, {"Ctrl+Shift+R", "Reading mode"}, {"Ctrl+Shift+H", "Hide something"},
 		{"Ctrl+Shift+U", "What is hidden here"}, {"Ctrl+F", "Find"}, {"Ctrl+D", "Duplicate tab"},
 		{"Ctrl+Shift+C", "Copy address (clean)"}, {"Ctrl+Shift+V", "Paste and go"}, {"Ctrl+Y", "History"},
-		{"Ctrl+Shift+J", "Downloads"}, {"Ctrl+Shift+E", "Extensions"}, {"Ctrl+,", "Settings"}, {"Ctrl+R  F5", "Reload"},
+		{"Ctrl+Shift+J", "Downloads"}, {"Ctrl+Shift+E", "Extensions"}, {"Ctrl+Shift+A", "Authenticator"}, {"Ctrl+,", "Settings"}, {"Ctrl+R  F5", "Reload"},
 		{"Ctrl+Alt+R  Ctrl+F5", "Reload from origin"}, {"Ctrl+ +  −  0", "Zoom"}, {"F11", "Full screen"},
 		{"F12", "Web Inspector"}, {"Esc", "Put away whatever is open"},
 	}

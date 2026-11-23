@@ -199,6 +199,9 @@ func runSelftest(b *Browser, script string) {
 			case "exportdlg":
 				v.Open()
 				exportAuthFile(b)
+			case "pinbutton":
+				b.setAuthenticatorPinned(rest == "on")
+				log = append(log, fmt.Sprintf("auth button visible: %v (setting %v)", b.authBtn.IsVisible(), b.app.settings.AuthenticatorButton))
 			case "lock":
 				v.Lock()
 				log = append(log, fmt.Sprintf("auth locked: %v, has pin: %v", !v.unlocked(), v.hasPIN()))

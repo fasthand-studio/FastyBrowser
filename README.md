@@ -204,7 +204,7 @@ print(cmd("content"))
 A few of the common ones: `Ctrl+L` address bar, `Ctrl+K` switch tab,
 `Ctrl+T` new tab, `Ctrl+W` close tab, `Ctrl+R` reload, `Ctrl+F` find,
 `Ctrl+Shift+R` reader mode, `Ctrl+Shift+H` hide an element, `Ctrl+Y` history,
-`Ctrl+Shift+J` downloads, `Ctrl+Shift+E` extensions, `Ctrl+,` settings.
+`Ctrl+Shift+J` downloads, `Ctrl+Shift+E` extensions, `Ctrl+Shift+A` Authenticator, `Ctrl+,` settings.
 Press `Ctrl+?` in the app for the full list.
 
 ## Project structure

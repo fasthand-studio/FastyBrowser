@@ -90,6 +90,27 @@ func showAuthenticatorList(b *Browser) {
 	add := gtk.NewButtonFromIconName("list-add-symbolic")
 	add.SetTooltipText("Add an account")
 	hb.PackEnd(add)
+	pinBtn := gtk.NewToggleButton()
+	pinBtn.SetIconName("view-pin-symbolic")
+	pinBtn.SetActive(b.app.settings.AuthenticatorButton)
+	pinTip := func() {
+		if pinBtn.Active() {
+			pinBtn.SetTooltipText("Pinned to the toolbar. Click to unpin")
+		} else {
+			pinBtn.SetTooltipText("Pin the Authenticator to the toolbar")
+		}
+	}
+	pinTip()
+	pinBtn.ConnectToggled(func() {
+		pinTip()
+		b.setAuthenticatorPinned(pinBtn.Active())
+	})
+	hb.PackEnd(pinBtn)
+	unlisten := b.listenAuthPinned(func(on bool) {
+		if pinBtn.Active() != on {
+			pinBtn.SetActive(on)
+		}
+	})
 	var rebuildRef func()
 	hb.PackEnd(authFileMenu(b, func() { rebuildRef() }))
 	tv.AddTopBar(hb)
@@ -205,6 +226,7 @@ func showAuthenticatorList(b *Browser) {
 	d.ConnectClosed(func() {
 		closed = true
 		releaseToasts()
+		unlisten()
 		v.Lock() // the codes are gone from memory; a PIN is asked again next time
 	})
 	rebuild()
@@ -458,6 +480,18 @@ func authenticatorGroup(b *Browser) *adw.PreferencesGroup {
 	open.SetSubtitle("See and add your codes")
 	suffixButton(open, "Open", "", func() { showAuthenticator(b) })
 	g.Add(open)
+
+	pinned := adw.NewSwitchRow()
+	pinned.SetTitle("Show in the toolbar")
+	pinned.SetSubtitle("An Authenticator button next to the extensions button (Ctrl+Shift+A opens it anywhere)")
+	pinned.SetActive(b.app.settings.AuthenticatorButton)
+	pinned.NotifyProperty("active", func() { b.setAuthenticatorPinned(pinned.Active()) })
+	b.listenAuthPinned(func(on bool) {
+		if pinned.Active() != on {
+			pinned.SetActive(on)
+		}
+	})
+	g.Add(pinned)
 
 	pin := adw.NewSwitchRow()
 	pin.SetTitle("Require a PIN")
@@ -761,4 +795,52 @@ func saveAuthExport(b *Browser, name string, data []byte) {
 		}
 		b.toast("Exported to "+f.Path(), 4)
 	})
+}
+
+// ---- the toolbar button ------------------------------------------------------------------
+
+// authenticatorButton is the icon next to the extensions button. Click opens
+// the Authenticator; right-click offers to unpin it.
+func (b *Browser) authenticatorButton() *gtk.Button {
+	btn := gtk.NewButtonFromIconName("dialog-password-symbolic")
+	btn.SetTooltipText("Authenticator (Ctrl+Shift+A)")
+	btn.AddCSSClass("flat")
+	btn.SetVisible(b.app.settings.AuthenticatorButton)
+	btn.ConnectClicked(func() { showAuthenticator(b) })
+
+	pop := gtk.NewPopover()
+	pop.SetParent(btn)
+	col := gtk.NewBox(gtk.OrientationVertical, 2)
+	unpin := gtk.NewButtonWithLabel("Unpin from Toolbar")
+	unpin.AddCSSClass("flat")
+	unpin.ConnectClicked(func() { pop.Popdown(); b.setAuthenticatorPinned(false) })
+	col.Append(unpin)
+	pop.SetChild(col)
+	right := gtk.NewGestureClick()
+	right.SetButton(3)
+	right.ConnectPressed(func(_ int, _, _ float64) { pop.Popup() })
+	btn.AddController(right)
+
+	b.listenAuthPinned(func(on bool) { btn.SetVisible(on) })
+	return btn
+}
+
+// setAuthenticatorPinned shows or hides the toolbar button and remembers it.
+func (b *Browser) setAuthenticatorPinned(on bool) {
+	if b.app.settings.AuthenticatorButton == on {
+		return
+	}
+	b.app.settings.Set("authenticator_button", func(d *SettingsData) { d.AuthenticatorButton = on })
+}
+
+// listenAuthPinned calls fn whenever the pinned state changes. The returned
+// function stops listening.
+func (b *Browser) listenAuthPinned(fn func(on bool)) func() {
+	stopped := false
+	b.app.settings.Listen(func(key string) {
+		if key == "authenticator_button" && !stopped {
+			fn(b.app.settings.AuthenticatorButton)
+		}
+	})
+	return func() { stopped = true }
 }

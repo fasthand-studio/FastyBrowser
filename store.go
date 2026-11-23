@@ -124,6 +124,7 @@ type SettingsData struct {
 	SmoothScrolling      bool               `json:"smooth_scrolling"`
 	HardwareAcceleration bool               `json:"hardware_acceleration"`
 	SleepAfterMinutes    int                `json:"sleep_after_minutes"`
+	AuthenticatorButton  bool               `json:"authenticator_button"` // the Authenticator icon in the toolbar
 	Permissions          map[string]bool    `json:"permissions"`
 	Window               WindowSize         `json:"window"`
 }
@@ -139,7 +140,7 @@ func loadSettings() *Settings {
 		Engine: "duckduckgo", Appearance: "system", TabsSide: "left", SidebarWidth: 248,
 		Shield: true, ShieldPaused: []string{}, CleanLinks: true, RestoreSession: true, Zoom: 1.0,
 		SiteZoom: map[string]float64{}, TrackingPrevention: true, Spellcheck: true,
-		SmoothScrolling: true, HardwareAcceleration: true, SleepAfterMinutes: 30,
+		SmoothScrolling: true, HardwareAcceleration: true, SleepAfterMinutes: 30, AuthenticatorButton: true,
 		Permissions: map[string]bool{}, Window: WindowSize{W: 1280, H: 820},
 	}}
 	readJSON("settings.json", &s.SettingsData)
