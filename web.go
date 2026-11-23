@@ -98,6 +98,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 	"unsafe"
@@ -352,25 +353,58 @@ type shieldBuild struct {
 	done    func([]string, []*webkit.UserContentFilter)
 }
 
-func (sh *Shield) build(groups [][]rule, done func([]string, []*webkit.UserContentFilter)) {
+// shieldVersion goes into every filter's identity: bump it when the rules
+// this code adds (not the lists) or the adblock engine's output change.
+const shieldVersion = "2"
+
+// listsKey identifies a filter group by what goes into it, so a compiled
+// filter already in WebKit's store is found without regenerating its rules
+// (which takes hundreds of MB of memory and a good part of a second).
+func listsKey(names ...string) string {
+	h := sha256.New()
+	fmt.Fprint(h, shieldVersion, shield(), len(names))
+	for _, n := range names {
+		fmt.Fprint(h, n, "\x00")
+		io.WriteString(h, filterList(n))
+	}
+	return hex.EncodeToString(h.Sum(nil))[:24]
+}
+
+// shield is the built-in part of the rules, for listsKey.
+func shield() string {
+	return fmt.Sprint(slots, youtubeSlots, youtubePaths, slotsBySite, unwanted)
+}
+
+type shieldGroup struct {
+	key string
+	gen func() []rule // only called when the filter isn't in the store yet
+}
+
+func shieldGroups() []shieldGroup {
+	return []shieldGroup{
+		{listsKey("easylist", "easyprivacy"), shieldRules},
+		{listsKey("stevenblack"), hostRules},
+	}
+}
+
+func (sh *Shield) build(groups []shieldGroup, done func([]string, []*webkit.UserContentFilter)) {
 	b := &shieldBuild{
 		idents:  make([]string, len(groups)),
 		filters: make([]*webkit.UserContentFilter, len(groups)),
 		pending: len(groups),
 		done:    done,
 	}
-	for i, rules := range groups {
-		data, _ := json.Marshal(rules)
-		sum := sha256.Sum256(data)
-		ident := fmt.Sprintf("office-shield-%d-%s", i, hex.EncodeToString(sum[:])[:24])
+	for i, g := range groups {
+		ident := fmt.Sprintf("office-shield-%d-%s", i, g.key)
 		b.idents[i] = ident
-		i, ident, data := i, ident, data
+		i, ident, g := i, ident, g
 		sh.store.Load(context.Background(), ident, func(res gio.AsyncResulter) {
 			f, err := sh.store.LoadFinish(res)
 			if err == nil && f != nil {
 				b.put(i, f)
 				return
 			}
+			data, _ := json.Marshal(g.gen())
 			sh.store.Save(context.Background(), ident, glib.NewBytes(data), func(res gio.AsyncResulter) {
 				f, err := sh.store.SaveFinish(res)
 				if err != nil {
@@ -389,11 +423,13 @@ func (b *shieldBuild) put(i int, f *webkit.UserContentFilter) {
 	b.pending--
 	if b.pending == 0 {
 		b.done(b.idents, b.filters)
+		// Compiling leaves a lot of garbage behind; give it back to the system.
+		go debug.FreeOSMemory()
 	}
 }
 
 func (sh *Shield) compile() {
-	groups := [][]rule{shieldRules(), hostRules()}
+	groups := shieldGroups()
 	sh.pending = len(groups)
 	sh.build(groups, func(idents []string, filters []*webkit.UserContentFilter) {
 		sh.idents, sh.filters = idents, filters
@@ -409,7 +445,7 @@ func (sh *Shield) compile() {
 
 // refresh swaps in freshly compiled rules without restarting the browser.
 func (sh *Shield) refresh() {
-	sh.build([][]rule{shieldRules(), hostRules()}, func(idents []string, filters []*webkit.UserContentFilter) {
+	sh.build(shieldGroups(), func(idents []string, filters []*webkit.UserContentFilter) {
 		old := sh.filters
 		sh.idents, sh.filters = idents, filters
 		coreglib.IdleAdd(func() bool {
