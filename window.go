@@ -94,6 +94,7 @@ func newBrowser(app *App) *Browser {
 	}
 	b.strip = newTabStrip(b)
 	b.omnibox = newOmnibox(b)
+	b.aliasPoll()
 
 	// --- the page ---
 	b.stack = gtk.NewStack()

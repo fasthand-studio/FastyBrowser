@@ -12,6 +12,7 @@ package main
 //	key ctrl+shift+t   a key, through the window's own bindings
 //	type TEXT          into the address field (or the new-tab field), then Return
 //	fill TEXT          the same, without Return
+//	copyaddr           select all in the address field and copy it; the clipboard text goes in the log
 //	eval JS            run in the page; the result goes in the log
 //	state              tabs, the current one, and how it is doing
 //	shot NAME          a PNG of the window
@@ -21,6 +22,7 @@ package main
 // The log goes to $FASTY_SELFTEST_OUT/selftest.json.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -30,6 +32,7 @@ import (
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 )
 
 func selftestOut() string {
@@ -147,6 +150,15 @@ func runSelftest(b *Browser, script string) {
 			if !done {
 				log = append(log, "shotpip: no floating window")
 			}
+		case "copyaddr":
+			b.omnibox.entry.GrabFocus()
+			b.omnibox.entry.SelectRegion(0, -1)
+			coreglib.BaseObject(b.omnibox.entry.Delegate()).Emit("copy-clipboard")
+			cb := gdk.DisplayGetDefault().Clipboard()
+			cb.ReadTextAsync(context.Background(), func(res gio.AsyncResulter) {
+				text, _ := cb.ReadTextFinish(res)
+				log = append(log, "clipboard: "+text)
+			})
 		case "fill":
 			// type without Return, to see the suggestions
 			if b.spotlight.shown() {

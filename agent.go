@@ -365,8 +365,17 @@ func doAgentCmd(b *Browser, cmd agentCmd, ch chan<- agentReply) {
 		}
 		s := b.app.settings
 		u := resolve(cmd.Text, s.Engine, s.CustomEngine)
+		label, target, alias := aliasMatch(cmd.Text)
+		if alias {
+			u = target
+		}
 		if t := agentTab(b); t != nil && t.view != nil {
+			t.aliasLabel, t.aliasUser = "", ""
+			if alias {
+				t.aliasLabel = label
+			}
 			t.load(u)
+			b.syncChrome()
 		} else {
 			b.openTab(u, true, nil, false, "", false)
 		}

@@ -55,6 +55,24 @@ func newOmnibox(b *Browser) *Omnibox {
 		}
 	})
 	o.Append(o.entry)
+	// Copying the address bar's text copies the real address when it is
+	// showing a fasthand alias.
+	text := coreglib.BaseObject(o.entry.Delegate()) // the GtkText inside the entry owns copy-clipboard
+	text.Connect("copy-clipboard", func() {
+		t := o.b.current
+		if t == nil {
+			return
+		}
+		shown, ok := t.aliasShown()
+		if !ok || o.entry.Text() != shown {
+			return
+		}
+		if start, end, sel := o.entry.SelectionBounds(); !sel || (start != 0 || end != len([]rune(shown))) {
+			return
+		}
+		gdk.DisplayGetDefault().Clipboard().SetText(cleanLink(t.url))
+		text.StopEmission("copy-clipboard")
+	})
 	o.entry.ConnectActivate(o.activate)
 	o.entry.ConnectChanged(o.changed)
 	focus := gtk.NewEventControllerFocus()
@@ -97,7 +115,11 @@ func (o *Omnibox) showTab(t *Tab) {
 		return
 	}
 	if t != nil && t.url != "" {
-		o.set(editable(t.url))
+		if shown, ok := t.aliasShown(); ok {
+			o.set(shown)
+		} else {
+			o.set(editable(t.url))
+		}
 	} else {
 		o.set("")
 	}
@@ -361,8 +383,23 @@ func (o *Omnibox) activate() {
 	if text == "" {
 		return
 	}
+	if label, target, ok := aliasMatch(text); ok {
+		o.goAlias(label, target)
+		return
+	}
 	s := o.b.app.settings
 	o.go_(resolve(text, s.Engine, s.CustomEngine))
+}
+
+// goAlias opens fasthandbd.com but keeps showing what was typed.
+func (o *Omnibox) goAlias(label, target string) {
+	b := o.b
+	o.go_(target)
+	if t := b.current; t != nil {
+		t.aliasLabel, t.aliasUser = label, ""
+		o.editing = false
+		b.syncChrome()
+	}
 }
 
 func (o *Omnibox) go_(u string) {
@@ -374,6 +411,7 @@ func (o *Omnibox) go_(u string) {
 		b.openTab(u, true, nil, o.private, "", false)
 		o.private = false
 	} else {
+		b.current.aliasLabel, b.current.aliasUser = "", ""
 		b.current.load(u)
 	}
 	b.focusPage()

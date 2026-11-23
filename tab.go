@@ -21,6 +21,8 @@ import (
 )
 
 type Tab struct {
+	aliasLabel string // alias: what to show in the bar in place of the TLD
+	aliasUser  string // alias: the signed-in username on fasthandbd.com
 	id       string
 	b        *Browser
 	url      string
@@ -113,6 +115,9 @@ func (t *Tab) wire(view *webkit.WebView) {
 	view.NotifyProperty("uri", func() {
 		if u := view.URI(); u != "" {
 			t.url = u
+			if t.aliasLabel != "" && hostOf(u) != aliasHost {
+				t.aliasLabel, t.aliasUser = "", "" // left the site: the alias ends
+			}
 		}
 		t.changed()
 	})
