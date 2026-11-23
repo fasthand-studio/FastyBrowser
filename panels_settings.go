@@ -231,6 +231,7 @@ func showSettings(b *Browser) {
 		{"WebKitGTK 6.0", "LGPL-2.1-or-later / BSD-3-Clause", "https://webkit.org/licensing/"},
 		{"GStreamer", "LGPL-2.1-or-later", "https://gstreamer.freedesktop.org/"},
 		{"gotk4 bindings", "MPL-2.0", "https://github.com/diamondburned/gotk4"},
+		{"golang.org/x/crypto", "BSD-3-Clause", "https://cs.opensource.google/go/x/crypto/+/master:LICENSE"},
 		{"adblock-rust", "MPL-2.0", "https://github.com/brave/adblock-rust/blob/master/LICENSE"},
 		{"serde_json", "MIT OR Apache-2.0", "https://github.com/serde-rs/json"},
 		{"EasyList / EasyPrivacy", "GPL-3.0-or-later OR CC BY-SA 3.0-or-later", "https://easylist.to/pages/licence.html"},

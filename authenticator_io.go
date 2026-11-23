@@ -8,9 +8,9 @@ package main
 // choose (AES-256-GCM, key from PBKDF2-HMAC-SHA256).
 //
 // Import reads: otpauth:// links (a text file, or inside Proton Authenticator
-// and Bitwarden JSON exports), Aegis and 2FAS unencrypted JSON, Google
-// Authenticator "export accounts" links (otpauth-migration://), and this
-// app's own password-locked files.
+// and Bitwarden JSON exports), Proton Authenticator's password-locked backups,
+// Aegis and 2FAS unencrypted JSON, Google Authenticator "export accounts" links
+// (otpauth-migration://), and this app's own password-locked files.
 
 import (
 	"crypto/pbkdf2"
@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/argon2"
 )
 
 var errNeedPassword = errors.New("this file is locked with a password")
@@ -99,6 +101,9 @@ func parseImport(data []byte, password string) ([]authEntry, error) {
 		if m, ok := root.(map[string]any); ok {
 			if _, locked := m["fasty_authenticator_export"]; locked {
 				return openLockedExport([]byte(text), password)
+			}
+			if isProtonLocked(m) {
+				return openProtonLocked([]byte(text), password)
 			}
 			if es, handled, err := importAegis(m); handled {
 				return es, err
@@ -434,4 +439,76 @@ func mergeImported(v *authVault, in []authEntry) (added, skipped int, err error)
 		added++
 	}
 	return added, skipped, nil
+}
+
+// ---- Proton Authenticator's password-locked backup ------------------------------------------------
+//
+// {"version":1,"salt":"<base64, 16 bytes>","content":"<base64>"}
+//   key  = Argon2id (v1.3, 19 MiB, 2 passes, 1 lane) of the password and salt, 32 bytes
+//   content = nonce (12 bytes) || AES-256-GCM(key, JSON, aad "proton.authenticator.export.v1")
+// as in protonpass/proton-pass-common, proton-authenticator/src/entry/password_exporter.rs.
+
+func isProtonLocked(m map[string]any) bool {
+	_, hasSalt := m["salt"].(string)
+	_, hasContent := m["content"].(string)
+	_, hasEntries := m["entries"]
+	return hasSalt && hasContent && !hasEntries
+}
+
+func protonKey(password string, salt []byte) []byte {
+	return argon2.IDKey([]byte(password), salt, 2, 19*1024, 1, 32)
+}
+
+func openProtonLocked(raw []byte, password string) ([]authEntry, error) {
+	var env struct {
+		Version int    `json:"version"`
+		Salt    string `json:"salt"`
+		Content string `json:"content"`
+	}
+	if json.Unmarshal(raw, &env) != nil {
+		return nil, errors.New("that file is damaged")
+	}
+	if env.Version != 1 {
+		return nil, fmt.Errorf("this Proton backup is version %d; only version 1 is supported", env.Version)
+	}
+	if password == "" {
+		return nil, errNeedPassword
+	}
+	salt, err1 := base64.StdEncoding.DecodeString(env.Salt)
+	sealed, err2 := base64.StdEncoding.DecodeString(env.Content)
+	if err1 != nil || err2 != nil || len(salt) != 16 || len(sealed) < 12+16 {
+		return nil, errors.New("that file is damaged")
+	}
+	plain, err := gcmOpen(protonKey(password, salt), []byte("proton.authenticator.export.v1"), sealed)
+	if err != nil {
+		return nil, errors.New("wrong password")
+	}
+	es := entriesFromProtonJSON(plain)
+	if len(es) == 0 {
+		return nil, errors.New("no accounts were found in that file")
+	}
+	return es, nil
+}
+
+// entriesFromProtonJSON reads the JSON inside a Proton backup. Steam entries
+// (steam:// links) use a different code scheme and are left out.
+func entriesFromProtonJSON(plain []byte) []authEntry {
+	var doc struct {
+		Entries []struct {
+			Content struct {
+				URI  string `json:"uri"`
+				Name string `json:"name"`
+			} `json:"content"`
+		} `json:"entries"`
+	}
+	if json.Unmarshal(plain, &doc) != nil {
+		return nil
+	}
+	var out []authEntry
+	for _, it := range doc.Entries {
+		if e, err := parseOtpauth(it.Content.URI); err == nil {
+			out = append(out, e)
+		}
+	}
+	return out
 }

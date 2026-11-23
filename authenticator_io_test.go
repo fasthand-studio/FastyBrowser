@@ -171,3 +171,25 @@ func TestMergeSkipsDuplicates(t *testing.T) {
 		t.Fatalf("%d %d %v %d", a, s, err, len(v.List()))
 	}
 }
+
+// A Proton Authenticator password backup made independently (Python's
+// cryptography: Argon2id + AES-256-GCM, with the layout from Proton's source).
+const protonVector = `{"version": 1, "salt": "AAECAwQFBgcICQoLDA0ODw==", "content": "ZGVmZ2hpamtsbW5vbHQIfLcOgeyZcpTf0k6/oT2UqjH9Afb3WC7DjKYBxsI+kmigmLad/sm186TbdYff4+SCMc/brI/7VpWtnmD8uC7d3CseTefbJRgRE+leXHqbH+ZZ6NRE2OxAaJHc11x69rbHbKPva3CagYilDpgnD86EzVHwgtnyRlwUhVWAH2uQ4hscCzdH7kt4YjcCESgGbw7JNQKkM9xAl63EJtx+s+dTzUaBn0XPxoNHa2KRsWYp1tomevDUJDvw1ZVAS2ia0gOSv273z/SS0UmDDGXcOx29DsiA52Um9VYa7KDEXugcDqHkLyT++2zAYIxJL+CAG4wc4LSJC0M++/Sx6MMhtB2c8iCIsBe83pcpsHU+7kaTElEf3gaaSE7CJ4w4NsYWhvMB/z5Z6FViGfm/oB62y4dPcrAYirTsZyz5Aw11a67QZ9+FgM7NQDOBXG4hpiHNaGHJaZ3d6hlF9rgrsPecmn6+5buYI/sd+6OzPYKLn9Biks1Dzfc7YGU8+8TwWYHeSntyr432/k1i2Ohyb36KkXHzJ62+FUPmokPWTW2OW+jardY3fk4QJj9Fx9JVMjQqGjHT3EC1hAy1jH4GiR276GlQFHcxtgjetUWjCISd8wGPz418NTswl7D4tbrpEmET1DB1UPbE/+4QyQkTR8vqve/SVJico0QgpqAlab6/vJTjlpuTLy1W48I21cq/LxPquIs+"}`
+
+func TestProtonLockedBackup(t *testing.T) {
+	if _, err := parseImport([]byte(protonVector), ""); err != errNeedPassword {
+		t.Fatalf("want a password request, got %v", err)
+	}
+	if _, err := parseImport([]byte(protonVector), "not the password"); err == nil || !strings.Contains(err.Error(), "wrong password") {
+		t.Fatalf("got %v", err)
+	}
+	got, err := parseImport([]byte(protonVector), "fasty-test-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the Steam entry is left out
+	sameAccounts(t, got, []authEntry{
+		{Issuer: "GitHub", Account: "demo-user", Secret: "JBSWY3DPEHPK3PXP"},
+		{Issuer: "Example", Account: "alice", Secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", Algorithm: "SHA256", Digits: 8, Period: 15},
+	})
+}
