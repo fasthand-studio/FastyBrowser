@@ -129,7 +129,7 @@ func (b *shieldBuild) put(i int, f *webkit.UserContentFilter) {
 	if b.pending == 0 {
 		b.done(b.idents, b.filters)
 		// Compiling leaves a lot of garbage behind; give it back to the system.
-		go debug.FreeOSMemory()
+		go func() { debug.FreeOSMemory(); trimHeap() }()
 	}
 }
 

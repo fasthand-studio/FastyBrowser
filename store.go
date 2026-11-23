@@ -144,6 +144,7 @@ type SettingsData struct {
 	DownloadsDir         string             `json:"downloads_dir"`
 	SmoothScrolling      bool               `json:"smooth_scrolling"`
 	HardwareAcceleration bool               `json:"hardware_acceleration"`
+	MemorySaver          int                `json:"memory_saver"` // 1 once the sleep time has been moved from 30 to 5 minutes
 	SleepAfterMinutes    int                `json:"sleep_after_minutes"`
 	AuthenticatorButton  bool               `json:"authenticator_pinned"` // the Authenticator icon in the toolbar
 	GPUVideoDecode       bool               `json:"gpu_video_decode"`     // decode video on an NVIDIA GPU (gpudecode.go)
@@ -163,10 +164,18 @@ func loadSettings() *Settings {
 		Engine: "duckduckgo", Appearance: "system", TabsSide: "left", SidebarWidth: 248,
 		Shield: true, ShieldPaused: []string{}, CleanLinks: true, RestoreSession: true, Zoom: 1.0,
 		SiteZoom: map[string]float64{}, TrackingPrevention: true, Spellcheck: true,
-		SmoothScrolling: true, HardwareAcceleration: true, SleepAfterMinutes: 30,
+		SmoothScrolling: true, HardwareAcceleration: true, SleepAfterMinutes: 5, MemorySaver: 1,
 		Permissions: map[string]bool{}, Window: WindowSize{W: 1280, H: 820},
 	}}
 	readJSON("settings.json", &s.SettingsData)
+	if s.MemorySaver < 1 {
+		// Older versions slept tabs after 30 minutes, which kept a dozen pages
+		// in memory; the default is 5 now. A time chosen on purpose is kept.
+		if s.SleepAfterMinutes == 30 {
+			s.SleepAfterMinutes = 5
+		}
+		s.MemorySaver = 1
+	}
 	if s.SiteZoom == nil {
 		s.SiteZoom = map[string]float64{}
 	}

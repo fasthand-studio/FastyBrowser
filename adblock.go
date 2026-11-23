@@ -7,6 +7,7 @@ package main
 /*
 #cgo LDFLAGS: ${SRCDIR}/adblock-ffi/target/release/libfasty_adblock.a -ldl -lm -lpthread
 #include <stdlib.h>
+#include <malloc.h>
 
 typedef struct FastyAdblock FastyAdblock;
 FastyAdblock* fasty_adblock_new(void);
@@ -45,3 +46,8 @@ func adblockRules(lists []string, format int) (string, error) {
 	defer C.fasty_adblock_free_str(p)
 	return C.GoString(p), nil
 }
+
+// trimHeap hands free memory in the C heap back to the system. Go's
+// FreeOSMemory only covers Go's own heap, and the blocker's rules, WebKit's
+// bindings and GTK all allocate with malloc.
+func trimHeap() { C.malloc_trim(0) }

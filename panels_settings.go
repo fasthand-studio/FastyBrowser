@@ -108,9 +108,9 @@ func showSettings(b *Browser) {
 	g = adw.NewPreferencesGroup()
 	g.SetTitle("Starting up and speed")
 	g.Add(switchRow(b, "Reopen last session's tabs", "restore_session", func(d *SettingsData) *bool { return &d.RestoreSession }, false))
-	sleep := adw.NewSpinRowWithRange(0, 240, 5)
+	sleep := adw.NewSpinRowWithRange(0, 240, 1)
 	sleep.SetTitle("Put unused tabs to sleep after (minutes)")
-	sleep.SetSubtitle("Frees their memory; 0 never does")
+	sleep.SetSubtitle("Frees their memory, and the page reloads when you come back. Tabs playing sound stay awake. 0 never sleeps them")
 	sleep.SetValue(float64(s.SleepAfterMinutes))
 	sleep.NotifyProperty("value", func() {
 		s.Set("sleep_after_minutes", func(d *SettingsData) { d.SleepAfterMinutes = int(sleep.Value()) })
