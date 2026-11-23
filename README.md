@@ -178,7 +178,9 @@ loaded.
   second, sharper if you make the window bigger) onto a canvas, encodes it as a
   JPEG and sends it to the browser, which shows it in the window
   (`pip_capture.go`). It costs some CPU in the page while it runs: about a
-  quarter of a core on a 1080p YouTube video in testing.
+  quarter of a core more (54% against 31% of a core for the same YouTube
+  video without it, in testing). Video decoding itself is on the CPU by
+  design (see Install), so the GPU isn't doing that work.
 - Videos whose pixels the page doesn't let scripts read (some cross-origin
   files, protected video) can't be copied. A plain video file then plays in a
   small video-only view (`pip_mirror.go`, which uses a second view and some
