@@ -703,7 +703,10 @@ func (e *Engine) makeSettings() *webkit.Settings {
 	s.SetEnableWebaudio(true)
 	s.SetEnableHtml5Database(true)
 	s.SetEnableHtml5LocalStorage(true)
-	s.SetEnablePageCache(true)
+	// The back/forward cache keeps whole previous pages alive. It held a
+	// YouTube page's 500 MB after the tab had moved on to a 270 MB shop, so a
+	// page you leave is let go; Back reloads it from the HTTP cache.
+	s.SetEnablePageCache(false)
 	s.SetEnableFullscreen(true)
 	s.SetEnableSiteSpecificQuirks(true)
 	s.SetMediaPlaybackRequiresUserGesture(false)
