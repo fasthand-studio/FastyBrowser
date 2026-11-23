@@ -62,6 +62,12 @@ mkdir -p "$APPDIR" "$PREFIX/bin" "$PREFIX/share/applications" "$PREFIX/share/ico
 rm -rf "$APPDIR/search_linux"
 install -m 755 "$HERE/fasty-browser-bin" "$APPDIR/fasty-browser-bin"
 install -m 755 "$HERE/fasty-browser.sh" "$APPDIR/fasty-browser"
+# The small helper library for GPU video decoding (Settings > General). Only
+# built when a C compiler is there; Fasty works without it.
+if command -v gcc >/dev/null 2>&1; then
+  gcc -shared -fPIC -O2 -o "$APPDIR/libfasty-uvm.so" "$HERE/native/bwrap_uvm.c" -ldl \
+    || echo "(couldn't build the GPU decoding helper; that option stays unavailable)"
+fi
 ln -sfn "$APPDIR/fasty-browser" "$PREFIX/bin/fasty-browser"
 cp "$HERE/data/fasty-browser.svg" "$PREFIX/share/icons/hicolor/scalable/apps/"
 sed "s|^Exec=fasty-browser|Exec=$PREFIX/bin/fasty-browser|" "$HERE/data/app.fastybrowser.Linux.desktop" \

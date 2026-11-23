@@ -125,6 +125,7 @@ type SettingsData struct {
 	HardwareAcceleration bool               `json:"hardware_acceleration"`
 	SleepAfterMinutes    int                `json:"sleep_after_minutes"`
 	AuthenticatorButton  bool               `json:"authenticator_pinned"` // the Authenticator icon in the toolbar
+	GPUVideoDecode       bool               `json:"gpu_video_decode"`     // decode video on an NVIDIA GPU (gpudecode.go)
 	Permissions          map[string]bool    `json:"permissions"`
 	Window               WindowSize         `json:"window"`
 }

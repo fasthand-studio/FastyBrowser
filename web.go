@@ -186,6 +186,9 @@ func newEngine(s *Settings) *Engine {
 		cookies.SetAcceptPolicy(webkit.CookiePolicyAcceptAlways)
 	}
 	ctx := e.context()
+	if gpuDecodeActive() {
+		ctx.AddPathToSandbox(filepath.Dir(gpuRegistryPath()), true) // GStreamer's registry for GPU decoding
+	}
 	ctx.SetSpellCheckingEnabled(s.Spellcheck)
 	var langs []string
 	for _, l := range glib.GetLanguageNames() {

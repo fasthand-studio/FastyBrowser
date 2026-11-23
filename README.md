@@ -99,13 +99,7 @@ video decoding is used on some drivers. Fasty demotes the hardware decoders
 (NVDEC, VA-API, VDPAU) so software decoding takes over, while GPU compositing
 stays on. Set `GST_PLUGIN_FEATURE_RANK` yourself to override this.
 
-Letting the GPU decode video wouldn't help on current WebKitGTK anyway. On an
-NVIDIA card WebKit's sandbox hides `/dev/nvidia-uvm`, which CUDA needs, so
-GStreamer's NVDEC plugin can't start inside the web process and decoding falls
-back to software (checked with the plugin's own log). Switching the sandbox
-off to allow it is unsafe, and when it ran, 1080p YouTube used more CPU, not
-less (about 60% of a core against 45%), because WebKit copies every decoded
-frame back from GPU memory.
+GPU decoding is an option, off by default: see **GPU video decoding** below.
 
 ## How blocking works
 
@@ -241,6 +235,37 @@ one-time codes, like Proton Authenticator or Google Authenticator:
 - Limits: time-based codes only (no counter-based HOTP, no Steam codes), no QR
   scanning, encrypted Aegis and 2FAS backups must be exported unencrypted
   first.
+
+## GPU video decoding
+
+Settings → General → "GPU video decoding (NVIDIA, experimental)", off by
+default. Video is decoded on the CPU unless you turn it on.
+
+Why it isn't just on: WebKit decodes video inside its sandboxed web process,
+and NVIDIA's decoder (NVDEC) can't start there, because it needs
+`/dev/nvidia-uvm`, which WebKit's sandbox leaves out. Firefox has the same
+trouble on NVIDIA (its users must switch a sandbox off). Fasty solves it with
+open-source pieces and one small helper:
+
+- **gst-plugin-va** and **libva-nvidia-driver** (install both) decode through
+  NVDEC. GStreamer's va plugin ignores that driver unless `GST_VA_ALL_DRIVERS`
+  is set, and it caches what it found, so Fasty keeps its own GStreamer
+  registry, made once with that set.
+- `native/bwrap_uvm.c` is preloaded into Fasty (`install.sh` builds it when
+  `gcc` is present). WebKit starts the web process with
+  `bwrap --args FD -- WebKitWebProcess`; the helper adds the two UVM device
+  nodes to that sandbox's arguments, and nothing else. The sandbox stays on.
+- `gpudecode.go` checks what's there, sets the variables, builds the registry
+  the first time (a few seconds) and restarts Fasty once with the helper
+  loaded. Settings shows what is missing if the switch is greyed out.
+
+Measured on an RTX 3060 with 1080p YouTube: the web process used about 32% of
+a core with it on and about 45% with it off, and `nvidia-smi` showed the
+decoder busy (5–8%). Limits: NVIDIA only (Intel and AMD cards decode on the GPU
+without this when gst-plugin-va is installed), it widens the web process's
+access by two device nodes, and it relies on how WebKitGTK starts its sandbox,
+which could change in a future version, in which case the option quietly stops
+having an effect.
 
 ## Memory and speed
 
@@ -394,6 +419,8 @@ adblock-ffi/          Rust crate that compiles filter lists to WebKit rules
 shield_rules.go       filter lists and the rules built from them
 shield.go             compiling rules into WebKit filters and refreshing them
 
+gpudecode.go          the GPU video decoding option (see above)
+native/bwrap_uvm.c    the helper it preloads (C), built by install.sh
 pip.go                picture in picture: choosing a way, closing, the old whole-page window
 pip_capture.go        the pop-up that shows frames copied from the page
 pip_mirror.go         the fallback video-only view for plain video files
