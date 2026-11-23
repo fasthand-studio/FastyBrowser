@@ -12,6 +12,7 @@ It can also run without asking, for scripts:
 """
 import argparse
 import glob
+import importlib.util
 import json
 import os
 import platform
@@ -107,42 +108,87 @@ def step(msg):
 
 # ---- what Fasty needs -------------------------------------------------------------
 
+MIN_GLIBC = (2, 39)  # what this build was linked against
+
+
 def distro():
+    """arch, debian (Debian, Ubuntu and their relatives) or fedora; "" if unknown."""
     try:
         with open("/etc/os-release") as f:
-            d = dict(l.strip().split("=", 1) for l in f if "=" in l)
-        ids = (d.get("ID", "") + " " + d.get("ID_LIKE", "")).strip('"').lower()
-        if "arch" in ids:
-            return "arch"
-        if "debian" in ids or "ubuntu" in ids:
-            return "debian"
-        if "fedora" in ids or "rhel" in ids:
-            return "fedora"
+            d = {}
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    d[k] = v.strip('"')
     except OSError:
-        pass
+        return ""
+    ids = (d.get("ID", "") + " " + d.get("ID_LIKE", "")).lower().split()
+    for names, key in ((("arch", "cachyos", "manjaro", "endeavouros"), "arch"),
+                       (("debian", "ubuntu", "linuxmint", "pop", "elementary"), "debian"),
+                       (("fedora", "rhel", "centos", "nobara"), "fedora")):
+        if any(n in ids for n in names):
+            return key
     return ""
 
 
-# library -> package names per distribution
+def distro_name():
+    try:
+        with open("/etc/os-release") as f:
+            for line in f:
+                if line.startswith("PRETTY_NAME="):
+                    return line.split("=", 1)[1].strip().strip('"')
+    except OSError:
+        pass
+    return "Linux"
+
+
+def glibc_version():
+    try:
+        return tuple(int(x) for x in os.confstr("CS_GNU_LIBC_VERSION").split()[1].split(".")[:2])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+# Libraries Fasty links against, and the package that has them on each system.
+# Installing the first three brings in the rest as dependencies.
 PACKAGES = {
     "libwebkitgtk-6.0.so.4": {"arch": "webkitgtk-6.0", "debian": "libwebkitgtk-6.0-4", "fedora": "webkitgtk6.0"},
+    "libjavascriptcoregtk-6.0.so.1": {"arch": "webkitgtk-6.0", "debian": "libjavascriptcoregtk-6.0-1", "fedora": "webkitgtk6.0"},
     "libgtk-4.so.1": {"arch": "gtk4", "debian": "libgtk-4-1", "fedora": "gtk4"},
     "libadwaita-1.so.0": {"arch": "libadwaita", "debian": "libadwaita-1-0", "fedora": "libadwaita"},
     "libsoup-3.0.so.0": {"arch": "libsoup3", "debian": "libsoup-3.0-0", "fedora": "libsoup3"},
+    "libgirepository-1.0.so.1": {"arch": "gobject-introspection-runtime", "debian": "libgirepository-1.0-1", "fedora": "gobject-introspection"},
+    "libgraphene-1.0.so.0": {"arch": "graphene", "debian": "libgraphene-1.0-0", "fedora": "graphene"},
+    "libvulkan.so.1": {"arch": "vulkan-icd-loader", "debian": "libvulkan1", "fedora": "vulkan-loader"},
 }
-MEDIA = {  # needed to play video and audio
+MEDIA = {  # video and audio playback
     "arch": ["gst-plugins-good", "gst-plugins-bad", "gst-libav"],
     "debian": ["gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav"],
-    "fedora": ["gstreamer1-plugins-good", "gstreamer1-plugins-bad-free", "gstreamer1-libav"],
+    "fedora": ["gstreamer1-plugins-good", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-libav"],
 }
-OPTIONAL = {  # nice to have
-    "secret-tool": {"arch": "libsecret", "debian": "libsecret-tools", "fedora": "libsecret"},
+MEDIA_NOTE = {
+    "fedora": "Fedora leaves H.264 out of its own packages. For YouTube and most video, enable RPM Fusion "
+              "and install libavcodec-freeworld.",
 }
-INSTALL_CMD = {
-    "arch": "sudo pacman -S --needed {}",
-    "debian": "sudo apt install {}",
-    "fedora": "sudo dnf install {}",
+KEYRING = {"arch": "libsecret", "debian": "libsecret-tools", "fedora": "libsecret"}
+# what the graphical installer itself needs
+GUI_PACKAGES = {
+    "arch": ["python-gobject", "libadwaita"],
+    "debian": ["python3-gi", "gir1.2-gtk-4.0", "gir1.2-adw-1"],
+    "fedora": ["python3-gobject", "libadwaita"],
 }
+INSTALL_ARGV = {  # needs root
+    "arch": ["pacman", "-S", "--needed", "--noconfirm"],
+    "debian": ["apt-get", "install", "-y"],
+    "fedora": ["dnf", "install", "-y"],
+}
+
+
+def install_command(dist, pkgs, use_sudo=True):
+    argv = (["sudo"] if use_sudo else []) + INSTALL_ARGV[dist] + list(pkgs)
+    if dist == "debian" and use_sudo:
+        argv = ["sudo", "apt", "install"] + list(pkgs)
+    return argv
 
 
 def missing_libraries(binary):
@@ -159,38 +205,74 @@ def have_gst_element(name):
     return subprocess.run(["gst-inspect-1.0", "--exists", name], capture_output=True).returncode == 0
 
 
+class Needs:
+    """What is missing on this computer."""
+
+    def __init__(self, binary):
+        self.dist = distro()
+        self.name = distro_name()
+        self.problems = []   # things that stop Fasty from starting: (what, package or None)
+        self.media = []      # packages for playing video
+        self.note = ""
+        self.keyring = None
+        g = glibc_version()
+        self.too_old = bool(g and g < MIN_GLIBC)
+        if self.too_old:
+            self.problems.append((f"a newer system (this build needs glibc {MIN_GLIBC[0]}.{MIN_GLIBC[1]} or later; "
+                                  f"this one has {g[0]}.{g[1]})", None))
+        for lib in missing_libraries(binary):
+            self.problems.append((lib, PACKAGES.get(lib, {}).get(self.dist)))
+        if have_gst_element("avdec_h264") is False or have_gst_element("vp9dec") is False or \
+                (have_gst_element("avdec_h264") is None and not glob.glob("/usr/lib*/**/libgstlibav.so", recursive=True)):
+            self.media = list(MEDIA.get(self.dist, []))
+            self.note = MEDIA_NOTE.get(self.dist, "")
+        if not shutil.which("secret-tool") and self.dist in KEYRING:
+            self.keyring = KEYRING[self.dist]
+
+    @property
+    def packages(self):
+        pk = {p for _, p in self.problems if p} | set(self.media)
+        if self.keyring:
+            pk.add(self.keyring)
+        return sorted(pk)
+
+    def argv(self, root=None):
+        """The command that installs everything missing in one go. root: ["sudo"], ["pkexec"], or [] when already root."""
+        root = ["sudo"] if root is None else root
+        pk = self.packages
+        if self.dist == "fedora" and self.media:
+            # Fedora ships no H.264. RPM Fusion has it, so turn that on too: one step, one password.
+            script = ("dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm"
+                      " && dnf install -y " + " ".join(pk) + " libavcodec-freeworld")
+            return root + ["sh", "-c", script]
+        return root + INSTALL_ARGV[self.dist] + pk
+
+    @property
+    def ok(self):
+        return not self.problems
+
+
 def check_requirements(binary, ask, skip):
     step("Checking what Fasty needs")
-    dist = distro()
-    need = []      # (what, package)
-    advise = []    # optional
-    libs = missing_libraries(binary)
-    for lib in libs:
-        pkg = PACKAGES.get(lib, {}).get(dist)
-        need.append((lib, pkg))
-    if have_gst_element("avdec_h264") is False or have_gst_element("vp9dec") is False:
-        for p in MEDIA.get(dist, []):
-            need.append(("video and audio playback", p))
-    for tool, pk in OPTIONAL.items():
-        if not shutil.which(tool):
-            advise.append((tool, pk.get(dist)))
-    if not need:
+    n = Needs(binary)
+    say(f"System: {n.name}" + ("" if n.dist else "  (not one Fasty knows by name; package names below may not apply)"))
+    if n.ok and not n.media:
         say("Everything Fasty needs is here.")
-    else:
-        for what, pkg in need:
-            say(f"  missing: {what}" + (f"  ({pkg})" if pkg else ""))
-    pkgs = sorted({p for _, p in need if p})
-    if pkgs and dist in INSTALL_CMD:
-        cmd = INSTALL_CMD[dist].format(" ".join(pkgs))
-        say(f"\nTo install them:  {cmd}")
-        if not skip and ask.yes_no("Run that now? (it will ask for your password)", default=False):
-            subprocess.run(cmd, shell=True)
-    elif need and not pkgs:
+    for what, pkg in n.problems:
+        say(f"  missing: {what}" + (f"  ({pkg})" if pkg else ""))
+    if n.media:
+        say("  missing: video and audio playback (" + ", ".join(n.media) + ")")
+    if n.note:
+        say("  " + n.note)
+    pkgs = n.packages
+    if pkgs and n.dist in INSTALL_ARGV:
+        say("\nTo install them:  " + " ".join(n.argv()))
+        if not skip and ask.yes_no("Install them now? (it will ask for your password)", default=True):
+            subprocess.run(n.argv())
+            n = Needs(binary)
+    elif n.problems and not pkgs:
         say("Install the missing libraries with your package manager, then run this again.")
-    opt = sorted({p for _, p in advise if p})
-    if opt:
-        say(f"\nOptional: {', '.join(opt)} keeps your passkeys and Authenticator keys in the system keyring.")
-    return len(need) == 0
+    return n.ok
 
 
 # ---- installing the files ---------------------------------------------------------------
@@ -525,6 +607,35 @@ def nvidia_present():
     return os.path.exists("/dev/nvidia-uvm")
 
 
+def want_gui(args):
+    """The window when there is a screen and GTK for Python, unless the text installer was asked for."""
+    asked_for_text = args.cli or args.yes or args.uninstall or args.engine or args.imp or args.import_file \
+        or args.default_browser or args.gpu_decode
+    if asked_for_text and not args.gui:
+        return False
+    if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
+        return False
+    try:
+        import gi
+        gi.require_version("Gtk", "4.0")
+        gi.require_version("Adw", "1")
+        from gi.repository import Adw, Gtk  # noqa: F401
+        return True
+    except (ImportError, ValueError):
+        dist = distro()
+        if not args.gui and dist in GUI_PACKAGES and sys.stdin.isatty() and not args.yes:
+            say("The installer window needs a few packages: " + " ".join(GUI_PACKAGES[dist]))
+            if Ask(False).yes_no("Install them now? (it will ask for your password)", default=True):
+                subprocess.run(install_command(dist, GUI_PACKAGES[dist]))
+                os.execv(sys.executable, [sys.executable] + sys.argv)  # start again, now with the window
+            return False
+        if args.gui:
+            pk = " ".join(GUI_PACKAGES.get(dist, []))
+            sys.exit("The graphical installer needs Python's GTK 4 and libadwaita bindings." +
+                     (f"\nInstall them with: {' '.join(install_command(dist, GUI_PACKAGES[dist]))}" if pk else ""))
+        return False
+
+
 def main():
     ap = argparse.ArgumentParser(description="Install Fasty Browser for your user.")
     ap.add_argument("--prefix", default=os.path.expanduser("~/.local"), help="where to install (default ~/.local)")
@@ -537,8 +648,16 @@ def main():
     ap.add_argument("--gpu-decode", choices=["yes", "no"], help="turn on GPU video decoding (NVIDIA)")
     ap.add_argument("--skip-checks", action="store_true", help="don't check for missing libraries")
     ap.add_argument("--no-launch", action="store_true", help="don't offer to start Fasty at the end")
+    ap.add_argument("--gui", action="store_true", help="use the graphical installer (the default when there is a screen)")
+    ap.add_argument("--cli", action="store_true", help="use the text installer")
     ap.add_argument("--uninstall", action="store_true", help="remove Fasty (your history and settings stay)")
     args = ap.parse_args()
+    if want_gui(args):
+        sys.argv = [sys.argv[0]]
+        spec = importlib.util.spec_from_file_location("fasty_gui", os.path.join(HERE, "install_gui.py"))
+        gui = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gui)
+        sys.exit(gui.run(args.prefix))
     if args.uninstall:
         uninstall(args.prefix)
         return

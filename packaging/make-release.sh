@@ -29,9 +29,12 @@ else
 fi
 cp data/fasty-browser.svg data/app.fastybrowser.Linux.desktop LICENSE "$STAGE/"
 install -m 755 packaging/install.py "$STAGE/install.py"
+install -m 644 packaging/install_gui.py "$STAGE/install_gui.py"
+echo "$VERSION" > "$STAGE/VERSION"
 cat > "$STAGE/install.sh" <<'SH'
 #!/bin/sh
-# Installs Fasty Browser for your user and asks a few first-run questions.
+# Installs Fasty Browser for your user. Opens the installer window when there is
+# a screen, and asks the same questions in the terminal when there is not.
 command -v python3 >/dev/null 2>&1 || { echo "python3 is needed to run the installer." >&2; exit 1; }
 exec python3 "$(dirname "$(readlink -f "$0")")/install.py" "$@"
 SH

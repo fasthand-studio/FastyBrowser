@@ -305,16 +305,31 @@ site they are for.
 ## Installing from a release
 
 `packaging/make-release.sh` builds `dist/fasty-browser-VERSION-linux-ARCH.tar.gz`
-and a `SHA256SUMS` file. Unpack it and run `./install.sh`. It installs for your
-user only (no root) and asks, in order: whether the libraries Fasty needs are
-there (with the package command for your distribution), which search engine to
-use, whether to make Fasty your default browser, GPU video decoding (only if you
-have an NVIDIA card), and whether to bring bookmarks and history over from
-Firefox, Zen, LibreWolf, Chrome, Chromium, Brave, Vivaldi, Edge or Opera.
-Passwords and cookies are not imported.
+and a `SHA256SUMS` file. Unpack it and run `./install.sh`.
+
+With a screen, a window opens (GTK 4 and libadwaita). Without one, or with
+`--cli`, the same questions come up in the terminal. It installs for your user
+only; the one thing that asks for a password is installing missing packages,
+and it does all of them in one go.
+
+1. **What Fasty needs.** It checks the libraries and the video plugins. One
+   button installs whatever is missing for your system: Arch (and CachyOS,
+   Manjaro, EndeavourOS), Debian and Ubuntu (and Mint, Pop!_OS), Fedora (and
+   its relatives). On Fedora that includes RPM Fusion's H.264 codec, which
+   Fedora leaves out of its own packages.
+2. **Search engine.**
+3. **Default browser.**
+4. **GPU video decoding**, only if you have an NVIDIA card.
+5. **Bring your things over** from Firefox, Zen, LibreWolf, Waterfox, Chrome,
+   Chromium, Brave, Vivaldi, Edge or Opera, or from a bookmarks file.
+   Passwords and cookies are not imported.
 
 For scripts: `./install.sh --yes --default-browser no --engine duckduckgo
 --import none`. `./install.sh --uninstall` removes the program and keeps your data.
+
+**Which systems.** The program is built on Arch against glibc 2.39, so it needs
+a system that new or newer: Ubuntu 24.04+, Debian 13+, Fedora 40+, current Arch.
+The installer says so, and refuses by default, on anything older.
 
 ## Agent Control
 
