@@ -208,25 +208,78 @@ Press `Ctrl+?` in the app for the full list.
 
 ## Project structure
 
+Everything is one Go package (`package main`), split into small files by job.
+Related files share a prefix.
+
 ```
-app.go          application lifecycle, renderer and decoder setup
-window.go       window, layout, keyboard shortcuts, find, reader
-tab.go          tabs and their lazily built web views
-web.go          WebKit sessions, settings, and the content-blocking Shield
-adblock.go      Go bridge to adblock-rust
-adblock-ffi/    Rust crate that compiles filter lists to WebKit rules
-agent.go        JSON-over-Unix-socket control interface
-address.go      URL resolution, search engines, link cleaning
-models.go       history, bookmarks, hidden elements
-store.go        settings and JSON persistence
-omnibox.go      address field with inline completion
-panels.go       history, bookmarks, downloads and settings panels
-tabstrip.go     tab strip (side column and top bar)
-downloads.go    download manager
-pip.go          picture-in-picture
-extension*.go   WebExtension runtime, networking, storage and UI
-selftest.go     headless test harness
-assets/         embedded CSS, JavaScript and filter lists
+app.go                application lifecycle, renderer and decoder setup
+store.go              settings and JSON persistence
+address.go            URL resolution, search engines, link cleaning
+history.go            history and address suggestions
+bookmarks.go          bookmarks
+curtain.go            hidden page elements
+downloads.go          download manager
+selftest.go           headless test harness
+
+window.go             the window and its layout
+window_tabs.go        opening, closing, moving, pinning and sleeping tabs
+window_nav.go         back, forward, reload, zoom, full screen, reader mode
+window_find.go        find in page
+window_veil.go        the element picker and hidden-element list
+window_data.go        bookmarks, downloads, site data, clipboard
+window_session.go     saving and restoring tabs
+window_keys.go        keyboard shortcuts
+tab.go                a tab and its lazily built web view
+tab_events.go         navigation, new windows, crashes, menus, page messages
+tabstrip.go           the tab strip (side column and top bar)
+omnibox.go            the address field with inline completion
+spotlight.go          the quick-open box
+panels.go             history, bookmarks, downloads and tab-switcher panels
+panels_site.go        the site card and permission questions
+panels_settings.go    the Settings window
+
+web.go                WebKit sessions, settings, content managers (cgo)
+adblock.go            Go bridge to adblock-rust (cgo)
+adblock-ffi/          Rust crate that compiles filter lists to WebKit rules
+shield_rules.go       filter lists and the rules built from them
+shield.go             compiling rules into WebKit filters and refreshing them
+
+pip.go                picture in picture: the window and its controls
+pip_mirror.go         the video-only pop-up
+pip_scripts.go        the scripts it runs inside pages
+pip_kwin.go           keeping the pop-up on top on KDE
+webauthn.go           passkeys: requests, asking, making and signing
+webauthn_store.go     passkeys saved on disk, encrypted
+webauthn_cbor.go      the CBOR a passkey needs
+
+agent.go              JSON-over-Unix-socket control interface
+agent_ext.go          its extension commands
+
+extensions.go         extension manifests and the extension manager
+extinstall.go         installing, removing and enabling extensions
+extmatch.go           match patterns
+extruntime.go         the message router between pages and extensions
+extinject.go          putting extension scripts and styles into pages
+extbackground.go      background pages
+extlocale.go          extension text, icons and badges
+extweb.go             store pages and pages that talk to extensions
+extcontrol.go         driving extensions from the browser and agent
+extapi_storage.go     chrome.storage
+extapi_tabs.go        chrome.tabs and chrome.scripting
+extapi_dnr.go         chrome.declarativeNetRequest (see extdnr*.go)
+extapi_extra.go       chrome.management, bookmarks, history, cookies, downloads and more
+extdyn.go             run-time content scripts
+extmenus.go           chrome.contextMenus
+extcapture.go         offscreen documents and tab capture
+extcommands.go        extension keyboard shortcuts
+extwindows.go         extension windows and sign-in flows
+extdnr.go             declarativeNetRequest state and rebuilding
+extdnr_convert.go     DNR rules to WebKit filters
+extnet.go             extension networking
+extnative.go          native messaging
+extscheme.go          the extension URL scheme (cgo)
+extension_ui.go       extension toolbar buttons, popups and panels
+assets/               embedded CSS, JavaScript and filter lists
 ```
 
 ## Data
