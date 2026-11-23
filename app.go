@@ -112,7 +112,20 @@ func (a *App) startup() {
 func (a *App) win() (*Browser, bool) {
 	if a.window == nil {
 		a.window = newBrowser(a)
-		a.agentLn = startAgent(a.window)
+		if a.settings.AgentSocket {
+			a.agentLn = startAgent(a.window)
+		}
+		// Turning it off in Settings takes effect at once.
+		a.settings.Listen(func(key string) {
+			if key != "agent_socket" {
+				return
+			}
+			stopAgent(a.agentLn)
+			a.agentLn = nil
+			if a.settings.AgentSocket {
+				a.agentLn = startAgent(a.window)
+			}
+		})
 		return a.window, true
 	}
 	return a.window, false

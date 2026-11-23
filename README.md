@@ -72,7 +72,8 @@ How the privacy features work:
   from a link you click or a key you press. A page that tries to launch one on
   its own, by redirecting or from a script, is stopped.
 - The **agent socket** is a local Unix socket at
-  `$XDG_RUNTIME_DIR/fasty.sock`, created for your user only. Any process
+  `$XDG_RUNTIME_DIR/fasty.sock`, created for your user only. Settings → Privacy →
+  Agent control turns it off (it takes effect at once and ends open connections). Any process
   running as you can connect to it and control open tabs, so keep that in
   mind when granting local access.
 

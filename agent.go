@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"syscall"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 )
@@ -61,10 +63,20 @@ func agentSockPath() string {
 	return filepath.Join(dir, "fasty.sock")
 }
 
+// agentConns are the connections open now, so turning the socket off can end
+// them as well as refuse new ones.
+var (
+	agentMu    sync.Mutex
+	agentConns = map[net.Conn]bool{}
+)
+
 func startAgent(b *Browser) net.Listener {
 	sock := agentSockPath()
 	os.Remove(sock)
+	// Make the socket private from the moment it exists, not just after a chmod.
+	old := syscall.Umask(0o177)
 	ln, err := net.Listen("unix", sock)
+	syscall.Umask(old)
 	if err != nil {
 		log.Printf("fasty: agent socket: %v", err)
 		return nil
@@ -76,18 +88,32 @@ func startAgent(b *Browser) net.Listener {
 			if err != nil {
 				return
 			}
-			go handleAgent(b, conn)
+			agentMu.Lock()
+			agentConns[conn] = true
+			agentMu.Unlock()
+			go func() {
+				handleAgent(b, conn)
+				agentMu.Lock()
+				delete(agentConns, conn)
+				agentMu.Unlock()
+			}()
 		}
 	}()
 	return ln
 }
 
+// stopAgent closes the socket and every connection to it.
 func stopAgent(ln net.Listener) {
 	if ln == nil {
 		return
 	}
 	ln.Close()
 	os.Remove(agentSockPath())
+	agentMu.Lock()
+	for c := range agentConns {
+		c.Close()
+	}
+	agentMu.Unlock()
 }
 
 func handleAgent(b *Browser, conn net.Conn) {

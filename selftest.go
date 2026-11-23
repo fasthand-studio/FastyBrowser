@@ -17,6 +17,7 @@ package main
 //	toast TEXT         show a toast (it should appear inside an open dialog)
 //	pipinfo            frames shown so far and the capture width of the copied-video window
 //	edgeenter / sideleave   the pointer entering the folded sidebar's edge, or leaving the peeking sidebar
+//	agentsocket on|off  turn the agent socket off or on, and report whether it answers
 //	copyaddr           select all in the address field and copy it; the clipboard text goes in the log
 //	eval JS            run in the page; the result goes in the log
 //	state              tabs, the current one, and how it is doing
@@ -30,10 +31,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -230,6 +233,26 @@ func runSelftest(b *Browser, script string) {
 		case "sideleave":
 			coreglib.BaseObject(b.sideMotion).Emit("leave")
 			log = append(log, fmt.Sprintf("sideleave: peeking=%v", b.peeking))
+		case "agentsocket":
+			dial := func() (net.Conn, error) { return net.DialTimeout("unix", agentSockPath(), time.Second) }
+			var open net.Conn
+			if arg == "off" {
+				open, _ = dial() // a connection that is open when the socket goes off
+			}
+			b.app.settings.Set("agent_socket", func(d *SettingsData) { d.AgentSocket = arg == "on" })
+			_, err := os.Stat(agentSockPath())
+			c2, derr := dial()
+			if c2 != nil {
+				c2.Close()
+			}
+			msg := fmt.Sprintf("agentsocket %s: socket file present=%v, new connection ok=%v", arg, err == nil, derr == nil)
+			if open != nil {
+				open.SetReadDeadline(time.Now().Add(time.Second))
+				_, rerr := open.Read(make([]byte, 1))
+				msg += fmt.Sprintf(", open connection ended=%v", rerr != nil && !os.IsTimeout(rerr))
+				open.Close()
+			}
+			log = append(log, msg)
 		case "copyaddr":
 			b.omnibox.entry.GrabFocus()
 			b.omnibox.entry.SelectRegion(0, -1)

@@ -147,6 +147,7 @@ type SettingsData struct {
 	SleepAfterMinutes    int                `json:"sleep_after_minutes"`
 	AuthenticatorButton  bool               `json:"authenticator_pinned"` // the Authenticator icon in the toolbar
 	GPUVideoDecode       bool               `json:"gpu_video_decode"`     // decode video on an NVIDIA GPU (gpudecode.go)
+	AgentSocket          bool               `json:"agent_socket"`         // the local control socket for scripts and agents (agent.go)
 	Permissions          map[string]bool    `json:"permissions"`
 	Window               WindowSize         `json:"window"`
 }
@@ -162,7 +163,7 @@ func loadSettings() *Settings {
 		Engine: "duckduckgo", Appearance: "system", TabsSide: "left", SidebarWidth: 248,
 		Shield: true, ShieldPaused: []string{}, CleanLinks: true, RestoreSession: true, Zoom: 1.0,
 		SiteZoom: map[string]float64{}, TrackingPrevention: true, Spellcheck: true,
-		SmoothScrolling: true, HardwareAcceleration: true, SleepAfterMinutes: 30,
+		SmoothScrolling: true, HardwareAcceleration: true, SleepAfterMinutes: 30, AgentSocket: true,
 		Permissions: map[string]bool{}, Window: WindowSize{W: 1280, H: 820},
 	}}
 	readJSON("settings.json", &s.SettingsData)

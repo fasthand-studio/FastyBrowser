@@ -171,6 +171,7 @@ func showSettings(b *Browser) {
 	page.Add(g)
 	page.Add(authenticatorGroup(b))
 	page.Add(passkeysGroup(b))
+	page.Add(agentGroup(b))
 	if len(s.ShieldPaused) > 0 {
 		g := adw.NewPreferencesGroup()
 		g.SetTitle("Blocker is off on")
@@ -320,5 +321,15 @@ func passkeysGroup(b *Browser) *adw.PreferencesGroup {
 		}
 	}
 	refresh()
+	return g
+}
+
+// agentGroup has the switch for the agent control socket.
+func agentGroup(b *Browser) *adw.PreferencesGroup {
+	g := adw.NewPreferencesGroup()
+	g.SetTitle("Agent control")
+	g.SetDescription("A private socket (" + agentSockPath() + ") lets a script or AI agent running as you read pages, click and run JavaScript in your tabs. Turn it off if you don't use that: anything running as your user could otherwise use it.")
+	r := switchRow(b, "Allow scripts and agents to control Fasty", "agent_socket", func(d *SettingsData) *bool { return &d.AgentSocket }, false)
+	g.Add(r)
 	return g
 }
