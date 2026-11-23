@@ -125,7 +125,11 @@ func showAuthenticatorList(b *Browser) {
 	stack.SetVExpand(true)
 	box.Append(stack)
 	tv.SetContent(box)
-	d.SetChild(tv)
+	// Toasts go inside the window: the browser's own would hide under it.
+	toasts := adw.NewToastOverlay()
+	toasts.SetChild(tv)
+	d.SetChild(toasts)
+	releaseToasts := b.toastInto(toasts.AddToast)
 
 	var rows []*authRow
 	var rebuild func()
@@ -200,6 +204,7 @@ func showAuthenticatorList(b *Browser) {
 	})
 	d.ConnectClosed(func() {
 		closed = true
+		releaseToasts()
 		v.Lock() // the codes are gone from memory; a PIN is asked again next time
 	})
 	rebuild()

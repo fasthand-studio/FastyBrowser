@@ -154,7 +154,11 @@ func newListPanel(b *Browser, title, ph string) *ListPanel {
 	p.stack.AddNamed(p.empty, "empty")
 	box.Append(p.stack)
 	tv.SetContent(box)
-	p.SetChild(tv)
+	toasts := adw.NewToastOverlay()
+	toasts.SetChild(tv)
+	p.SetChild(toasts)
+	releaseToasts := b.toastInto(toasts.AddToast)
+	p.ConnectClosed(releaseToasts)
 	p.SetFocus(p.search)
 	return p
 }

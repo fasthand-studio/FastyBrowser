@@ -46,6 +46,7 @@ type Browser struct {
 	banner      *gtk.Revealer
 	bannerLabel *gtk.Label
 	toasts      *adw.ToastOverlay
+	dialogToast []func(*adw.Toast) // toast sinks of the dialogs on screen, innermost last
 	card        *gtk.Box
 	side        *gtk.Box
 	sideHead    *gtk.WindowHandle
@@ -481,8 +482,26 @@ func (b *Browser) inspector() {
 	}
 }
 
+// toast shows a short message. While a dialog is open the message goes into
+// the dialog, since the window's own toasts would sit underneath it.
 func (b *Browser) toast(text string, timeout uint) {
 	t := adw.NewToast(text)
 	t.SetTimeout(timeout)
+	if n := len(b.dialogToast); n > 0 {
+		b.dialogToast[n-1](t)
+		return
+	}
 	b.toasts.AddToast(t)
+}
+
+// toastInto sends toasts to a dialog until the returned function is called
+// (when the dialog closes).
+func (b *Browser) toastInto(add func(*adw.Toast)) func() {
+	b.dialogToast = append(b.dialogToast, add)
+	n := len(b.dialogToast)
+	return func() {
+		if len(b.dialogToast) >= n {
+			b.dialogToast = append(b.dialogToast[:n-1], b.dialogToast[n:]...)
+		}
+	}
 }

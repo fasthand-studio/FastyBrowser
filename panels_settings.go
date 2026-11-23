@@ -64,6 +64,8 @@ func showSettings(b *Browser) {
 	d := adw.NewPreferencesDialog()
 	d.SetTitle("Settings")
 	d.SetSearchEnabled(true)
+	releaseToasts := b.toastInto(d.AddToast) // toasts inside the window, not under it
+	d.ConnectClosed(releaseToasts)
 
 	// General
 	page := adw.NewPreferencesPage()

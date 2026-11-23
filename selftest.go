@@ -14,6 +14,7 @@ package main
 //	fill TEXT          the same, without Return
 //	passkey allow|deny [N]  answer the passkey question on screen (N: which account, from 1)
 //	auth open | add ISSUER|ACCOUNT|SECRET | pin on 1234 | pin off 1234 | lock   Authenticator
+//	toast TEXT         show a toast (it should appear inside an open dialog)
 //	copyaddr           select all in the address field and copy it; the clipboard text goes in the log
 //	eval JS            run in the page; the result goes in the log
 //	state              tabs, the current one, and how it is doing
@@ -204,6 +205,8 @@ func runSelftest(b *Browser, script string) {
 			case "unlock":
 				log = append(log, fmt.Sprintf("auth unlock: %v", v.Unlock(rest)))
 			}
+		case "toast":
+			b.toast(arg, 30)
 		case "copyaddr":
 			b.omnibox.entry.GrabFocus()
 			b.omnibox.entry.SelectRegion(0, -1)
