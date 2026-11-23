@@ -12,6 +12,7 @@ package main
 //	key ctrl+shift+t   a key, through the window's own bindings
 //	type TEXT          into the address field (or the new-tab field), then Return
 //	fill TEXT          the same, without Return
+//	passkey allow|deny [N]  answer the passkey question on screen (N: which account, from 1)
 //	copyaddr           select all in the address field and copy it; the clipboard text goes in the log
 //	eval JS            run in the page; the result goes in the log
 //	state              tabs, the current one, and how it is doing
@@ -149,6 +150,24 @@ func runSelftest(b *Browser, script string) {
 			}
 			if !done {
 				log = append(log, "shotpip: no floating window")
+			}
+		case "passkey":
+			if p := b.passkeyAsk; p != nil {
+				f := strings.Fields(arg)
+				pick := 0
+				if len(f) > 1 {
+					pick, _ = strconv.Atoi(f[1])
+					pick--
+				}
+				if len(f) > 0 && f[0] == "allow" {
+					p.respond("allow", pick)
+				} else {
+					p.respond("deny", 0)
+				}
+				p.dialog.ForceClose()
+				log = append(log, "passkey: answered")
+			} else {
+				log = append(log, "passkey: no question on screen")
 			}
 		case "copyaddr":
 			b.omnibox.entry.GrabFocus()

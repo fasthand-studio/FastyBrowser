@@ -766,6 +766,7 @@ func showSettings(b *Browser) {
 	g.Add(switchRow(b, "Remove tracking parameters from links", "clean_links", func(d *SettingsData) *bool { return &d.CleanLinks }, false))
 	g.Add(switchRow(b, "Prevent cross-site tracking", "tracking_prevention", func(d *SettingsData) *bool { return &d.TrackingPrevention }, true))
 	page.Add(g)
+	page.Add(passkeysGroup(b))
 	if len(s.ShieldPaused) > 0 {
 		g := adw.NewPreferencesGroup()
 		g.SetTitle("Blocker is off on")
@@ -851,4 +852,68 @@ func showSettings(b *Browser) {
 	page.Add(g)
 	d.Add(page)
 	d.Present(b)
+}
+
+// passkeysGroup lists the passkeys saved on this computer, each with a way to
+// delete it.
+func passkeysGroup(b *Browser) *adw.PreferencesGroup {
+	g := adw.NewPreferencesGroup()
+	g.SetTitle("Passkeys")
+	g.SetDescription("Passkeys sites have saved on this computer. They don't sync, and deleting one only removes it here: remove it from the site's own security settings too.")
+	store := b.app.passkeys
+	var rows []*adw.ActionRow
+	var refresh func()
+	refresh = func() {
+		for _, r := range rows {
+			g.Remove(r)
+		}
+		rows = nil
+		store.mu.Lock()
+		list := append([]passkey(nil), store.list...)
+		store.mu.Unlock()
+		if len(list) == 0 {
+			r := adw.NewActionRow()
+			r.SetTitle("No passkeys saved")
+			g.Add(r)
+			rows = append(rows, r)
+			return
+		}
+		for _, k := range list {
+			k := k
+			r := adw.NewActionRow()
+			r.SetTitle(k.RPID)
+			who := k.UserName
+			if who == "" {
+				who = k.DisplayName
+			}
+			r.SetSubtitle(who + " · " + time.Unix(k.Created, 0).Format("2 Jan 2006"))
+			suffixButton(r, "Delete", "", func() {
+				d := adw.NewAlertDialog("Delete this passkey?", "You will not be able to sign in to "+k.RPID+" with it on this computer any more.")
+				d.AddResponse("cancel", "Cancel")
+				d.AddResponse("delete", "Delete")
+				d.SetResponseAppearance("delete", adw.ResponseDestructive)
+				d.SetCloseResponse("cancel")
+				d.ConnectResponse(func(resp string) {
+					if resp != "delete" {
+						return
+					}
+					store.mu.Lock()
+					for i, p := range store.list {
+						if p.ID == k.ID {
+							store.list = append(store.list[:i], store.list[i+1:]...)
+							break
+						}
+					}
+					store.save()
+					store.mu.Unlock()
+					refresh()
+				})
+				d.Present(b)
+			})
+			g.Add(r)
+			rows = append(rows, r)
+		}
+	}
+	refresh()
+	return g
 }

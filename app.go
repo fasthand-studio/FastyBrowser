@@ -23,6 +23,7 @@ type App struct {
 	bookmarks   *Bookmarks
 	curtain     *Curtain
 	engine      *Engine
+	passkeys    *passkeyStore
 	shield      *Shield
 	downloads   *Downloads
 	extensions  *ExtensionManager
@@ -45,7 +46,7 @@ func newApp() *App {
 		// A self-test runs on its own, beside a browser already open.
 		flags |= gio.ApplicationNonUnique
 	}
-	a := &App{Application: adw.NewApplication(appID, flags)}
+	a := &App{Application: adw.NewApplication(appID, flags), passkeys: passkeys()}
 	glib.SetApplicationName("Fasty")
 	glib.SetPrgname(appName)
 	a.AddMainOption("private", 0, glib.OptionFlagNone, glib.OptionArgNone, "Open a private tab", "")

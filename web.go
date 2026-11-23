@@ -631,6 +631,7 @@ type Engine struct {
 	youtube     string
 	pipButton   string
 	compat      string
+	webauthn    string
 	ctx         C.gpointer
 }
 
@@ -655,7 +656,7 @@ func memoryBudget() (page, net uint) {
 
 func newEngine(s *Settings) *Engine {
 	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js"),
-		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js")}
+		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js"), webauthn: asset("js/webauthn.js")}
 	page, net := memoryBudget()
 	e.ctx = C.sb_context(C.guint(page), C.guint(net))
 	base := filepath.Join(dataDir(), "web")
@@ -781,6 +782,10 @@ func (e *Engine) contentManagerWithExtensions(ext *ExtensionManager) *webkit.Use
 	ucm.AddScript(webkit.NewUserScript(e.compat, webkit.UserContentInjectTopFrame,
 		webkit.UserScriptInjectAtDocumentStart,
 		[]string{"https://github.com/*"}, nil))
+	// Passkeys: the standard WebAuthn API, backed by webauthn.go.
+	ucm.AddScript(webkit.NewUserScript(e.webauthn, webkit.UserContentInjectTopFrame,
+		webkit.UserScriptInjectAtDocumentStart,
+		[]string{"https://*/*", "http://localhost/*", "http://*.localhost/*"}, nil))
 	// The hover "Picture in Picture" button on videos.
 	ucm.AddScript(webkit.NewUserScript(e.pipButton, webkit.UserContentInjectAllFrames,
 		webkit.UserScriptInjectAtDocumentStart, nil, nil))

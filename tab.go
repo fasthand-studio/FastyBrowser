@@ -409,6 +409,8 @@ func (t *Tab) onMessage(body string) {
 			if t.b.app.extensions != nil {
 				t.b.app.extensions.HandleWebExternal(body, t)
 			}
+		case "webauthn":
+			t.b.webauthn(t, body)
 		case "pip":
 			var m struct {
 				Frame  string  `json:"frame"`

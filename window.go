@@ -39,6 +39,7 @@ type Browser struct {
 	app         *App
 	tabs        []*Tab
 	popups      []*Tab // popups live in their own windows, not in tabs
+	passkeyAsk  *passkeyPrompt // the passkey question on screen, if any
 	current     *Tab
 	closed      []closedTab
 	fullPage    bool
