@@ -16,9 +16,17 @@
 Fasty is a Linux browser written in Go. It uses the system's WebKitGTK 6.0
 engine with GTK 4 and libadwaita — no bundled Chromium and no Electron.
 
-It also has a built-in agent interface: an AI agent or script can connect over
-a Unix socket, read a page, run JavaScript, click elements, and navigate —
-without screen scraping or a browser extension.
+- **Fast to start and light on memory**: tabs you aren't using go to sleep,
+  and the ad blocker's rules are compiled once and cached.
+- **Blocks ads and trackers itself**, before a request is made, with no
+  extension and no remote service.
+- **Built-in sign-in tools**: passkeys (WebAuthn) and an Authenticator for
+  one-time codes, both stored encrypted on your computer.
+- **Picture in picture** that plays only the video, with a button on every
+  video.
+- **An agent interface**: a script or AI agent can connect over a Unix socket,
+  read a page, run JavaScript, click elements and navigate, without screen
+  scraping or an extension.
 
 ## Privacy
 
@@ -33,10 +41,16 @@ Your data stays on this machine:
 
 - History, bookmarks, settings, permissions, hidden elements and the open-tab
   session are JSON files in `~/.local/share/fasty-browser/`.
+- Passkeys (`passkeys.json`) and Authenticator accounts (`authenticator.json`)
+  are in the same folder, **encrypted** (see below). The keys that open them
+  are kept in your system keyring (`secret-tool`/libsecret, such as KDE Wallet
+  or GNOME Keyring), or in a file readable only by you if there is no keyring.
 - Cookies, cache and WebKit site data live under `~/.local/`, and compiled
   blocker rules in `~/.cache/fasty-browser/`.
 - There is no sync service and no cloud backup. Clearing browsing data in
-  Settings → Privacy removes local history, cookies, site data and cache.
+  Settings → Privacy removes local history, cookies, site data and cache. It
+  does not touch passkeys or Authenticator accounts: delete those where they
+  are listed (Settings → Privacy).
 
 How the privacy features work:
 
@@ -63,12 +77,15 @@ How the privacy features work:
 fasty-browser           # launch from the terminal or the app menu
 ```
 
-Build and runtime tools: Go, Rust (`cargo`), `curl`, `python3`, `pkg-config`,
-`objcopy`, and GStreamer plugins for audio and video. On Arch:
+Build and runtime tools: Go (modules are downloaded at build time), Rust
+(`cargo`), `curl`, `python3`, `pkg-config`, `objcopy`, and GStreamer plugins
+for audio and video. `libsecret` (`secret-tool`) is optional: without it the
+Authenticator and passkey keys are kept in a private file instead of the
+keyring. On Arch:
 
 ```bash
 sudo pacman -S go rust curl python3 pkgconf binutils \
-  webkitgtk-6.0 gst-plugins-good gst-plugins-bad gst-libav
+  webkitgtk-6.0 gst-plugins-good gst-plugins-bad gst-libav libsecret
 ```
 
 If WebKitGTK 6.0 is missing, `install.sh` downloads and unpacks a private copy
@@ -91,13 +108,9 @@ content-blocking rules. WebKit enforces them before a request leaves the
 browser, so blocked ad and tracker requests are never made.
 
 - Rules are split into two WebKit filters because WebKit allows only about
-  150,000 rules per filter. WebKit caches the compiled rules on disk.
-- Unlike third-party ads, YouTube's own ads are part of the page itself and
-  have no separate URL to block. A cosmetic rule hides in-feed ad cards, and
-  a main-world script strips `adPlacements`, `adSlots` and `playerAds` from
-  the inline player response and from player/watch/playlist responses before
-  the player sees them — the same technique uBlock Origin and AdGuard use.
-  No ad is scheduled, so no ad video is requested.
+  150,000 rules per filter. WebKit caches the compiled rules on disk, under a
+  name made from the lists themselves, so the rules are only rebuilt (a few
+  hundred MB of work) when a list changes, not on every launch.
 - Every three days the browser downloads fresh lists from `easylist.to` and
   GitHub, recompiles them with adblock-rust and swaps the filters in without a
   restart. It checks again daily. If a download fails, the last good list is
@@ -107,20 +120,130 @@ browser, so blocked ad and tracker requests are never made.
   blocker on and off globally, and **About this site** can pause it for a
   single host.
 
+### YouTube
+
+YouTube's own ads are part of the page itself and have no separate URL to
+block, so `assets/js/youtube.js` works the way Brave's and uBlock Origin's
+YouTube scriptlets do:
+
+- the inline player response never carries ad keys;
+- `JSON.parse` and `Response.json` results are pruned;
+- fetch and XHR responses for player, get_watch, next, browse, playlist and
+  Shorts requests have `adPlacements`, `adSlots` and `playerAds` renamed to
+  `no_ads`, and ad entries are dropped from lists;
+- ads that are baked into the stream (YouTube's server-side-inserted ads) are
+  seeked past as soon as the player reports one;
+- the "ad blockers violate the terms" popup is dismissed;
+- ad containers are hidden with Brave's and EasyList's exact selectors.
+
+YouTube changes its ads often, so some will slip through; this is a best
+effort, not a guarantee.
+
 ## Features
 
 | | |
 |---|---|
 | **Tabs** | Side column or top bar, pinned tabs, foldable sidebar, `Ctrl+K` tab switcher, lazy restore, auto-sleep |
-| **Blocking** | Ad/tracker blocker from EasyList, EasyPrivacy and StevenBlack hosts, with a toggle and per-site pause |
+| **Blocking** | Ad/tracker blocker from EasyList, EasyPrivacy and StevenBlack hosts, YouTube ad handling, a toggle and per-site pause |
 | **Agent Socket** | JSON commands over `$XDG_RUNTIME_DIR/fasty.sock`: tabs, eval, click, screenshot, and more |
 | **Reading** | Reader mode, per-site zoom, clean links, find on page |
 | **Hiding** | Pick an element to hide permanently, managed per site |
 | **Library** | Searchable bookmarks, history and downloads panels |
-| **Media** | Picture-in-picture and remembered camera, microphone and location permissions |
-| **Sign-in** | An Authenticator for one-time codes (Settings > Privacy), with an optional PIN, and passkeys (WebAuthn) kept encrypted on this computer |
+| **Media** | Picture in picture, and remembered camera, microphone and location permissions |
+| **Sign-in** | Passkeys (WebAuthn) and an Authenticator for one-time codes, kept encrypted on this computer |
 | **Look** | System, light or dark theme with GTK 4 / libadwaita widgets |
 | **Extensions** | WebExtension-style add-ons: content scripts, background pages, browser APIs, and an extension store |
+
+## Picture in picture
+
+WebKitGTK has no picture-in-picture of its own, so Fasty provides it:
+
+- Point at any video and a small PiP button appears in its corner. Click it, or
+  press `Ctrl+Shift+P`, to pop the video out into a small window that stays on
+  top (on KDE; elsewhere use your window manager's "always on top").
+- For YouTube and videos with a direct file address, the pop-up is a small
+  video-only view. The tab keeps its page (comments, recommendations) and its
+  video area says "This video is playing in Picture-in-Picture"; click it to
+  bring the video back.
+- When you bring the video back, the tab picks up where the pop-up got to,
+  playing or paused as it was. If the tab has moved to another page meanwhile,
+  nothing is resumed on the new page.
+- Videos from streams that can't be re-opened in a second view fall back to
+  moving the tab's whole page into the pop-up, showing only the video.
+- The pop-up is a second view, so it uses extra memory while open.
+
+## Passkeys
+
+WebKitGTK has no WebAuthn, so sites hid their passkey and "Continue with
+Google" options. Fasty defines the standard API (`navigator.credentials`,
+`PublicKeyCredential`) and answers it with a built-in authenticator:
+
+- Passkeys are made and used only for the site in the tab's own address, after
+  you confirm each time. Nothing happens silently.
+- Private keys are encrypted (AES-256-GCM) and the key is in your system
+  keyring. Settings → Privacy → Passkeys lists them and can delete them.
+- Limits: ES256 only, no attestation, no autofill-style prompts, no USB
+  security keys. Passkeys stay on this computer: they don't sync, and
+  passkeys from your phone or other browsers are not available here. The
+  confirmation dialog counts as the "user verification" some sites ask for,
+  which is weaker than a fingerprint or PIN.
+- `webauthn.go`, `webauthn_store.go`, `webauthn_cbor.go` and
+  `assets/js/webauthn.js` hold the code.
+
+## Authenticator
+
+Settings → Privacy → Authenticator (or `Ctrl+Shift+A`) opens a window of
+one-time codes, like Proton Authenticator or Google Authenticator:
+
+- Add accounts with a secret key or an `otpauth://` link. Each shows its
+  current code, a ring counting down to the next one, and the next code. Click
+  a code to copy it. SHA-1, SHA-256 and SHA-512, 6 or 8 digits, any period
+  (RFC 6238; checked against its test vectors).
+- Accounts are stored encrypted with a key kept in the system keyring.
+- **PIN** (off until you turn it on, Settings → Privacy → Authenticator →
+  Require a PIN): the key is taken out of the keyring and kept only in a form
+  that needs the PIN (PBKDF2-HMAC-SHA256, 600,000 rounds), so the PIN protects
+  the codes even from someone with your files and login. Three wrong tries
+  start a wait that doubles each time. A forgotten PIN can't be recovered.
+- **Toolbar button** (off until you turn it on, "Show in the toolbar"): a key
+  icon next to the extensions button; right-click it to unpin.
+- **Import** reads text files of `otpauth://` links, Proton Authenticator
+  backups (including its password-locked ones), Aegis and 2FAS unencrypted
+  exports, Bitwarden JSON, Google Authenticator's "export accounts" link, and
+  Fasty's own locked files. Accounts already present are skipped.
+- **Export** writes a text file of `otpauth://` links (unprotected: anyone with
+  the file can use your codes) or the same locked with a password
+  (AES-256-GCM, key from PBKDF2).
+- Limits: time-based codes only (no counter-based HOTP, no Steam codes), no QR
+  scanning, encrypted Aegis and 2FAS backups must be exported unencrypted
+  first.
+
+## Memory and speed
+
+On one test machine (Arch, NVIDIA RTX 3060, seven pinned tabs, one page
+loaded) the browser used about 470 MB in total: the window about 165 MB, a
+typical page about 260 MB and the network process about 50 MB. A heavy page
+such as YouTube takes 600 MB or more. What keeps it down:
+
+- Tabs you haven't used for 30 minutes (Settings → General) go to sleep and
+  give their memory back; they also sleep sooner when the system is short of
+  memory.
+- The back/forward page cache is off, so a page you leave is let go instead of
+  being kept alive for Back. Back reloads from the HTTP cache.
+- The blocker's compiled rules are cached by content, so startup doesn't
+  rebuild them.
+
+Keep **Hardware acceleration** on: turning it off cost about 28% of the
+Speedometer 3.1 score in testing. Fasty also avoids work that slows pages: for
+example `assets/js/compat.js` stops GitHub's tab bars from running a
+scroll-driven animation that halved the frame rate while scrolling.
+
+## Site compatibility
+
+`assets/js/compat.js` holds small fixes for sites that expect things WebKitGTK
+lacks. Today it makes GitHub load its sign-in options (Google, Apple) and
+stops GitHub's tab bars from slowing scrolling. Fixes are limited to the one
+site they are for.
 
 ## Agent Control
 
@@ -174,6 +297,7 @@ echo '{"action":"screenshot","path":"/tmp/shot.png"}' | socat - UNIX-CONNECT:$XD
 | `ext-remove` / `ext-toggle` / `ext-reload` | `id`, `enabled` | manage an extension |
 | `ext-eval` / `ext-call` / `ext-open` / `ext-action` | `id`, `page`, `message`, `target`, `area` | run or query extension code |
 | `ext-logs` / `ext-storage` | `id`, `items` | read extension logs or storage |
+| `pip-eval` | `script` | run JS in the current tab's video-only Picture-in-Picture window |
 
 </details>
 
@@ -204,7 +328,8 @@ print(cmd("content"))
 A few of the common ones: `Ctrl+L` address bar, `Ctrl+K` switch tab,
 `Ctrl+T` new tab, `Ctrl+W` close tab, `Ctrl+R` reload, `Ctrl+F` find,
 `Ctrl+Shift+R` reader mode, `Ctrl+Shift+H` hide an element, `Ctrl+Y` history,
-`Ctrl+Shift+J` downloads, `Ctrl+Shift+E` extensions, `Ctrl+Shift+A` Authenticator, `Ctrl+,` settings.
+`Ctrl+Shift+J` downloads, `Ctrl+Shift+E` extensions, `Ctrl+Shift+A`
+Authenticator, `Ctrl+Shift+P` Picture in picture, `Ctrl+,` settings.
 Press `Ctrl+?` in the app for the full list.
 
 ## Project structure
@@ -286,23 +411,46 @@ extnet.go             extension networking
 extnative.go          native messaging
 extscheme.go          the extension URL scheme (cgo)
 extension_ui.go       extension toolbar buttons, popups and panels
-assets/               embedded CSS, JavaScript and filter lists
+assets/style.css      the stylesheet
+assets/js/            scripts the browser runs inside pages:
+                        picker.js (element picker), wheel.js (smooth wheel),
+                        youtube.js (YouTube ad data), pipbutton.js (the
+                        Picture-in-Picture button), webauthn.js (passkeys),
+                        compat.js (site fixes), reader.js, webext.js and
+                        ext_store.js (extensions)
+assets/filters/       bundled EasyList, EasyPrivacy and hosts lists
 ```
+
+## Testing
+
+```bash
+go test .                # codes (RFC 6238 vectors), the encrypted vault and PIN,
+                         # import and export, including a Proton backup
+```
+
+`FASTY_SELFTEST=script fasty-browser` drives a separate instance through a
+script (open pages, type, press keys, take screenshots); the verbs are listed
+at the top of `selftest.go`. The agent socket (above) is the other way to test
+a running browser.
 
 ## Data
 
 ```
 ~/.local/share/fasty-browser/    settings, history, bookmarks, hidden
                                elements, permissions, session, extensions,
-                               cookies and WebKit site data
+                               passkeys.json and authenticator.json (both
+                               encrypted), cookies and WebKit site data
 ~/.cache/fasty-browser/          cache, filter lists and compiled rules
+system keyring                   the keys for passkeys and the Authenticator
+                               (a 0600 file next to the data if none)
 ```
 
 All of it is local and is never uploaded.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Settings → Open Source lists the projects Fasty
+is built on and their licenses.
 
 ---
 
