@@ -555,6 +555,20 @@ system keyring                   the keys for passkeys and the Authenticator
 
 All of it is local and is never uploaded.
 
+## Known issues and contributing
+
+Fasty is young, and it is a WebKit browser, not a Chromium one. Some extensions
+may not work, because Fasty implements only part of the WebExtension APIs, and
+you may run into glitches on some sites. If you find one, please
+[open an issue](https://github.com/fasthand-studio/FastyBrowser/issues) with
+the site or extension, what you expected, and what happened. Reports like this
+are how it gets better.
+
+If you are a developer, you are welcome to contribute: fix a bug, improve
+extension support, add a site fix to `assets/js/compat.js`, or send a pull
+request for anything else. Help from the community is what makes this project
+grow.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Settings → Open Source lists the projects Fasty
