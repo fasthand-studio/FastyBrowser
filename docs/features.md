@@ -1,5 +1,27 @@
 # Features in detail
 
+## New windows open as tabs
+
+Links with `target=_blank` and pages that call `window.open` open as a tab next
+to the page that opened them, not as a separate window. The new tab stays
+linked to its opener, so sign-in pop-ups that report back to the page, and
+`window.close()`, still work.
+
+## Site icons are kept
+
+Fasty saves each site's icon (one small PNG per site) and uses it until the page
+supplies a new one, so pinned and restored tabs keep their icons after a restart.
+Private tabs don't use it.
+
+## Signing in with Facebook
+
+Instagram's "Log in with Facebook" asks facebook.com, from instagram.com, who is
+signed in. That needs Facebook's cookies to be `SameSite=None`, but WebKitGTK
+stores them as `Lax`, so the check came back empty and sign-in failed. Fasty
+sets Meta's secure cookies (facebook.com, instagram.com, messenger.com,
+threads.net) to `SameSite=None` again after they change. Other sites are left as
+they set them (`metacookies.go`).
+
 ## Picture in picture
 
 WebKitGTK has no picture-in-picture of its own, so Fasty provides it, the way

@@ -27,3 +27,11 @@ Keep **Hardware acceleration** on: turning it off cost about 28% of the
 Speedometer 3.1 score in testing. Fasty also avoids work that slows pages: for
 example `assets/js/compat.js` stops GitHub's tab bars from running a
 scroll-driven animation that halved the frame rate while scrolling.
+
+## NVIDIA graphics
+
+On NVIDIA's proprietary driver Fasty draws the window with OpenGL instead of
+Vulkan, and turns off WebKit's DMA-BUF path to the compositor
+(`WEBKIT_DISABLE_DMABUF_RENDERER=1`). In a scripted scroll of a Wikipedia page the
+page process used 3 s of CPU in 10 s instead of 6 s. Set either variable
+(`GSK_RENDERER`, `WEBKIT_DISABLE_DMABUF_RENDERER`) yourself to override.

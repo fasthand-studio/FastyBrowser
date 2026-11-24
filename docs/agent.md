@@ -35,7 +35,7 @@ echo '{"action":"screenshot","path":"/tmp/shot.png"}' | socat - UNIX-CONNECT:$XD
 | `navigate` | `url` | load in the current tab |
 | `open` | `url` | open a new tab |
 | `select` | `tab` (1-based) | switch tab |
-| `close` | | close the selected tab or popup |
+| `close` | | close the selected tab (or extension window) |
 | `back` / `forward` / `reload` | | navigation |
 | `url` / `title` | | current page URL or title |
 | `eval` | `script` | run JS, return the result |
@@ -45,8 +45,8 @@ echo '{"action":"screenshot","path":"/tmp/shot.png"}' | socat - UNIX-CONNECT:$XD
 | `click` | `selector` | click the first matching element |
 | `type` | `text` | resolve text as a URL or search and navigate |
 | `wait` | | no-op reply, useful for checking the socket |
-| `popups` | | array of popups with `index`, `url`, `title`, `loading`, `built`, `selected` |
-| `popup-select` | `tab` (1-based) | select a popup for following commands |
+| `popups` | | extension windows, with `index`, `url`, `title`, `loading`, `built`, `selected` |
+| `popup-select` | `tab` (1-based) | select an extension window for following commands (web pop-ups open as ordinary tabs) |
 | `state` | | full browser state |
 | `extensions` | | list installed extensions |
 | `ext-install` | `url` / `path` / `id` | install an extension from a URL, folder or ID |

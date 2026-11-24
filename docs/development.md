@@ -4,7 +4,10 @@ Everything is one Go package (`package main`), split into small files by job. Re
 
 ```
 app.go                application lifecycle, renderer and decoder setup
-store.go              settings and JSON persistence
+store.go              settings and JSON persistence (the version number lives here)
+store_test.go         settings tests
+iconcache.go          keeps a copy of each site's icon so tabs don't lose it
+metacookies.go        keeps Facebook/Instagram cookies SameSite=None (see features.md)
 address.go            URL resolution, search engines, link cleaning
 history.go            history and address suggestions
 bookmarks.go          bookmarks
@@ -37,6 +40,8 @@ shield.go             compiling rules into WebKit filters and refreshing them
 
 gpudecode.go          the GPU video decoding option (see [features](features.md))
 native/bwrap_uvm.c    the helper it preloads (C), built by install.sh
+packaging/            installer (install.py, install_gui.py, tests), make-release.sh, make-packages.sh
+docs/                 these documents
 pip.go                picture in picture: choosing a way, closing, the old whole-page window
 pip_capture.go        the pop-up that shows frames copied from the page
 pip_mirror.go         the fallback video-only view for plain video files
@@ -54,6 +59,11 @@ authenticator_io_test.go import/export tests
 
 agent.go              JSON-over-Unix-socket control interface
 agent_ext.go          its extension commands
+record.go             network recording: what every request and response looked like
+record_c.go           reads HTTP headers in C (the Go bindings crash on some)
+assets/js/netrec.js   page side of recording: fetch/XHR/form bodies
+redact.go             removes tokens, keys and cookie values from every agent reply
+redact_test.go        tests for the redactor
 
 extensions.go         extension manifests and the extension manager
 extinstall.go         installing, removing and enabling extensions
@@ -87,13 +97,13 @@ assets/js/            scripts the browser runs inside pages:
                         the video out), webauthn.js (passkeys),
                         compat.js (site fixes), reader.js, webext.js and
                         ext_store.js (extensions)
-assets/filters/       bundled EasyList, EasyPrivacy and hosts lists
+assets/filters/       EasyList, EasyPrivacy and hosts lists (downloaded by build.sh)
 ```
 
 ## Testing
 
 ```bash
-go test .                # codes (RFC 6238 vectors), the encrypted vault and PIN,
+go test .                # the redactor, settings, codes (RFC 6238 vectors), the encrypted vault and PIN,
                          # import and export, including a Proton backup
 ```
 

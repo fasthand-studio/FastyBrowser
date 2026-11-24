@@ -15,6 +15,10 @@ Your data stays on this machine:
   are in the same folder, **encrypted** (see [features](features.md)). The keys that open them
   are kept in your system keyring (`secret-tool`/libsecret, such as KDE Wallet
   or GNOME Keyring), or in a file readable only by you if there is no keyring.
+- A copy of each site's icon is kept in `favicons/` in the same folder so tabs
+  don't lose their icons; clearing everything in Settings removes it.
+- A copy of each site's icon is kept in `favicons/` in the same folder so tabs
+  don't lose their icons; "Clear everything" in Settings removes it.
 - Cookies, cache and WebKit site data live under `~/.local/`, and compiled
   blocker rules in `~/.cache/fasty-browser/`.
 - The data and cache folders are readable by your user only (mode 700, files
@@ -46,7 +50,9 @@ How the privacy features work:
   Agent control turns it on or off (at once, and turning it off ends open
   connections). `FASTY_AGENT=1 fasty-browser` starts it for one run. Any process
   running as you can connect to it and control open tabs, so keep that in
-  mind when granting local access.
+  mind when granting local access. Everything it sends back is redacted
+  (tokens, keys, passwords, cookie values; see [agent.md](agent.md)). Network
+  recording, when you switch it on, is stored locally under `recordings/`.
 
 ## Where the data is
 
