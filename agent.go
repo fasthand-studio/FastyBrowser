@@ -49,6 +49,12 @@ type agentCmd struct {
 	Limit  int    `json:"limit,omitempty"`
 	Offset int    `json:"offset,omitempty"`
 
+	Rule    json.RawMessage `json:"rule,omitempty"`    // intercept-rule / intercept-forward: the rule or edits
+	Timeout int             `json:"timeout,omitempty"` // intercept-hold: seconds before an unanswered request is let through
+	Private bool            `json:"private,omitempty"` // open/perf: use a private tab (empty cache)
+	Warm    bool            `json:"warm,omitempty"`    // perf: normal tab, may use the cache
+	Clear   bool            `json:"clear,omitempty"`   // perf warm: clear the cache first
+
 	ID      string                     `json:"id,omitempty"`
 	Page    string                     `json:"page,omitempty"`
 	Target  string                     `json:"target,omitempty"`
@@ -202,8 +208,79 @@ func doAgentCmd(b *Browser, cmd agentCmd, ch chan<- agentReply) {
 			fail("url required")
 			return
 		}
-		b.openTab(cmd.URL, true, nil, false, "", false)
+		b.openTab(cmd.URL, true, nil, cmd.Private, "", false)
 		ok(nil)
+
+	case "clear-cache":
+		clearCache(b, func(err error) {
+			if err != nil {
+				ch <- agentReply{Error: err.Error()}
+				return
+			}
+			ch <- agentReply{OK: true, Result: "HTTP disk and memory cache cleared (cookies and logins kept)"}
+		})
+		return
+
+	case "intercept-rule":
+		id, err := icpt.addRule(cmd.Rule)
+		if err != nil {
+			fail(err.Error())
+			return
+		}
+		icpt.sync(b)
+		ok(map[string]any{"rule": id, "note": "applies to page-made fetch/XHR/beacon requests in every tab, including pages loaded from now on"})
+
+	case "intercept-hold":
+		if strings.TrimSpace(cmd.Filter) == "" {
+			fail("filter required: a URL substring, or re:<regexp>")
+			return
+		}
+		h := map[string]any{"match": cmd.Filter, "timeout": 60}
+		if cmd.Method != "" {
+			h["method"] = cmd.Method
+		}
+		if cmd.Timeout > 0 {
+			h["timeout"] = cmd.Timeout
+		}
+		icpt.mu.Lock()
+		icpt.hold = h
+		icpt.mu.Unlock()
+		icpt.sync(b)
+		ok("holding matching requests: intercept-list to see them, intercept-forward / intercept-drop to release")
+
+	case "intercept-list":
+		icpt.mu.Lock()
+		held := append([]*icptHeld{}, icpt.held...)
+		out := map[string]any{"held": held, "rules": icpt.rules, "hold": icpt.hold, "applied": len(icpt.log)}
+		icpt.mu.Unlock()
+		ok(out)
+
+	case "intercept-log":
+		icpt.mu.Lock()
+		lg := append([]icptApplied{}, icpt.log...)
+		icpt.mu.Unlock()
+		ok(lg)
+
+	case "intercept-forward":
+		if err := icpt.decide(cmd.ID, cmd.Rule, false); err != nil {
+			fail(err.Error())
+			return
+		}
+		ok(nil)
+
+	case "intercept-drop":
+		if err := icpt.decide(cmd.ID, nil, true); err != nil {
+			fail(err.Error())
+			return
+		}
+		ok(nil)
+
+	case "intercept-stop":
+		ok(map[string]any{"released": icpt.reset(b)})
+
+	case "perf":
+		agentPerf(b, cmd, ch)
+		return
 
 	case "select":
 		if cmd.Tab < 1 || cmd.Tab > len(b.tabs) {
@@ -499,6 +576,13 @@ Network recording (also switchable by the user in Settings > Agent control):
   record-list{filter?,method?,limit?,offset?}  filter: URL text, or :failed :post :redirect :cookies
   record-get{entry}  full request/response headers, redirects (with Set-Cookie), bodies
   record-export{path?}  redacted JSON file, mode 600
+Speed: clear-cache (HTTP cache only, logins kept); perf{url?,warm?,clear?} measures a load and lists findings:
+  perf url=... loads it in a private tab (empty cache = cold), measures, closes it; add warm=true clear=true to use a normal tab after clearing the cache;
+  perf with no url measures the current tab. open also takes private=true.
+Interception (page-made fetch/XHR/beacon only; for testing your own sites; match is required):
+  intercept-rule{rule:{match,method?,set_headers?,remove_headers?,url?,url_replace?{from,to},body?,body_replace?{from,to},json_set?{path:value},block?,mock?{status,headers,body},delay_ms?,resp_json_set?{path:value},resp_body_replace?{from,to},resp_status?,resp_body?}}
+  intercept-hold{filter,method?,timeout?}  hold matching requests; intercept-list shows them; intercept-forward{id,rule?: edits} or intercept-drop{id}
+  intercept-log (which rules fired), intercept-stop (clears rules and hold, releases anything held)
 Popups: popups, popup-select{tab}`
 
 const elementsScript = `JSON.stringify([...document.querySelectorAll('a[href],button,input,select,textarea,[role=button],[onclick]')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0}).slice(0,150).map((e,i)=>{e.setAttribute('data-fasty-i',i);return {selector:'[data-fasty-i="'+i+'"]',tag:e.tagName.toLowerCase(),type:e.type||undefined,text:(e.innerText||e.value||e.placeholder||e.getAttribute('aria-label')||'').trim().slice(0,80),href:e.href||undefined}}))`

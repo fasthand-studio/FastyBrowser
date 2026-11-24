@@ -144,6 +144,7 @@ type Engine struct {
 	compat      string
 	webauthn    string
 	netrec      string
+	intercept   string
 	ctx         C.gpointer
 }
 
@@ -181,7 +182,7 @@ func pressureFractions(limitMB uint) (cons, strict float64) {
 
 func newEngine(s *Settings) *Engine {
 	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js"),
-		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js"), webauthn: asset("js/webauthn.js"), netrec: asset("js/netrec.js")}
+		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js"), webauthn: asset("js/webauthn.js"), netrec: asset("js/netrec.js"), intercept: asset("js/intercept.js")}
 	page, net := memoryBudget()
 	cons, strict := pressureFractions(page)
 	e.ctx = C.sb_context(C.guint(page), C.guint(net), C.double(cons), C.double(strict))

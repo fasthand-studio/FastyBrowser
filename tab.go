@@ -180,6 +180,7 @@ func (t *Tab) wire(view *webkit.WebView) {
 	if rec.active() {
 		t.hookRecording("window.__fastyRecOn=true;\n" + t.b.app.engine.netrec)
 	}
+	icpt.tabOpened(t)
 	view.ConnectClose(func() { t.b.closeTab(t) })
 	view.ConnectMouseTargetChanged(func(hit *webkit.HitTestResult, _ uint) {
 		if hit.ContextIsLink() {
@@ -253,6 +254,7 @@ func (t *Tab) unload() *webkit.WebView {
 		return nil
 	}
 	t.b.app.shield.Forget(t.ucm)
+	icpt.forget(t)
 	v := t.view
 	t.view = nil
 	t.ucm = nil

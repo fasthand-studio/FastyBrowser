@@ -96,6 +96,46 @@ headers, redirects, status and failures, plus request bodies and fetch/XHR
 responses seen by the page. Stopping from the button saves the log under
 `~/.local/share/fasty-browser/recordings/`.
 
+## Intercepting and changing requests
+
+For testing your own site, or one you have permission to test: change what the
+page sends and what the server answers, then see whether the server still
+holds up. It works on requests the page's own script makes (`fetch`, XHR,
+`sendBeacon`). Navigations, images, CSS and plain form posts are not touched,
+and the browser won't let page script set `Cookie`, `Host`, `Origin`,
+`Referer` or `User-Agent`.
+
+| Action | Fields | What it does |
+|---|---|---|
+| `intercept-rule` | `rule` | change matching requests automatically |
+| `intercept-hold` | `filter`, `method`, `timeout` | hold matching requests until you release them |
+| `intercept-list` | | held requests, active rules |
+| `intercept-forward` | `id`, `rule` | release a held request, with edits if given |
+| `intercept-drop` | `id` | cancel a held request |
+| `intercept-log` | | which rules fired |
+| `intercept-stop` | | remove all rules and the hold, release what is held |
+
+A rule needs `match` (a URL substring, or `re:` and a regular expression) and
+can have `method`, `set_headers`, `remove_headers`, `url`, `url_replace`,
+`body`, `body_replace`, `json_set` (dotted paths, e.g. `{"item.qty": 100}`),
+`block`, `mock` (a fake response), `delay_ms`, and, for the answer coming
+back, `resp_json_set`, `resp_body_replace`, `resp_status` and `resp_body` (`mock` and the `resp_*`
+edits work on `fetch` only).
+
+Typical checks: send a different quantity, price or stock value than the page
+holds; make the page believe an out-of-stock product is in stock and see
+whether checkout still refuses it; drop a header or change an ID to look for
+missing permission checks. Use `record-start` and `record-get` to see what
+reached the server and what it said. Held requests are let through unchanged
+after `timeout` seconds (60 by default). These tests change real data on a
+live site, so use a test account and test products.
+
+## Speed
+
+`clear-cache` empties the HTTP cache (logins stay). `perf` loads a page,
+cold in a private tab by default, and returns timings, the slowest requests
+and plain findings.
+
 ## Secrets are redacted
 
 Every reply on the socket passes through a redactor (`redact.go`). Tokens,

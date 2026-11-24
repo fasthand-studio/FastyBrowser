@@ -184,6 +184,7 @@ func (b *Browser) closeTab(t *Tab) {
 	if t == nil || t.view == nil {
 		return
 	}
+	icpt.forget(t)
 	b.app.extensions.authTabClosed(t)
 	if x := b.app.extensions; x != nil && x.anyBackground() {
 		x.fire("tabs.onRemoved", t.num, map[string]any{"windowId": 1, "isWindowClosing": false})

@@ -25,6 +25,11 @@ engine with GTK 4 and libadwaita: no bundled Chromium and no Electron.
 - **Extensions**: WebExtension-style add-ons and an extension store.
 - **Agent control**: a script or AI agent can read pages, click and run
   JavaScript over a local socket, with secrets redacted. [Details](docs/agent.md)
+- **Built for security testing with AI**: record every request, then change
+  requests and responses on the fly (edit a body field, flip "out of stock"
+  to "in stock", block, delay, hold and edit by hand) to check that your own
+  site's server doesn't trust the browser. Also clears the cache and measures
+  page speed. For sites you own or are allowed to test. [Details](docs/agent.md#intercepting-and-changing-requests)
 - **Private by design**: no account, no telemetry, everything stays on your
   machine. [Details](docs/privacy.md)
 

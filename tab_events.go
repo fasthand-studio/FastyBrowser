@@ -167,6 +167,8 @@ func (t *Tab) onMessage(body string) {
 			}
 		case "netrec":
 			rec.fromPage(t, body)
+		case "icpt":
+			icpt.fromPage(t, body)
 		case "webauthn":
 			t.b.webauthn(t, body)
 		case "pip":

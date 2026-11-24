@@ -18,7 +18,7 @@ import (
 const (
 	appID   = "app.fastybrowser.Linux"
 	appName = "fasty-browser"
-	version = "1.0.2"
+	version = "1.1.0"
 )
 
 func xdgDir(env, fallback string) string {
