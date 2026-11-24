@@ -25,7 +25,7 @@ such as YouTube takes 600 MB or more. What keeps it down:
 
 Keep **Hardware acceleration** on: turning it off cost about 28% of the
 Speedometer 3.1 score in testing. Fasty also avoids work that slows pages: for
-example `assets/js/compat.js` stops GitHub's tab bars from running a
+example `src/assets/js/compat.js` stops GitHub's tab bars from running a
 scroll-driven animation that halved the frame rate while scrolling.
 
 ## NVIDIA graphics

@@ -30,7 +30,7 @@ fi
 
 # Bundled filter lists: refreshed weekly, fetched when building. They are
 # embedded in the binary by go:embed, so the browser needs no network for them.
-mkdir -p "$HERE/assets/filters"
+mkdir -p "$HERE/src/assets/filters"
 for entry in \
   "easylist https://easylist.to/easylist/easylist.txt" \
   "easyprivacy https://easylist.to/easylist/easyprivacy.txt" \
@@ -38,7 +38,7 @@ for entry in \
   set -- $entry
   list="$1"
   url="$2"
-  target="$HERE/assets/filters/$list.txt"
+  target="$HERE/src/assets/filters/$list.txt"
   if [ ! -s "$target" ] || [ -n "$(find "$target" -mtime +7 -print -quit 2>/dev/null)" ]; then
     echo "Fetching $list filter list..."
     curl -fLsS --max-time 90 -o "$target.tmp" "$url" || \
@@ -47,5 +47,5 @@ for entry in \
   fi
 done
 
-go build -trimpath -ldflags "-s -w" -o fasty-browser-bin .
+go build -trimpath -ldflags "-s -w" -o fasty-browser-bin ./src
 echo "Built $HERE/fasty-browser-bin"

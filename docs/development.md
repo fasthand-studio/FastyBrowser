@@ -1,6 +1,6 @@
 # Development
 
-Everything is one Go package (`package main`), split into small files by job. Related files share a prefix.
+The browser is the Go package in `src/` (`package main`), split into small files by job; related files share a prefix. Self-contained pieces live in their own packages under `src/`: `redact/`, `cbor/` and `pipscripts/`. Outside `src/`: `adblock-ffi/` (Rust ad blocker), `native/` (C helper), `packaging/`, `data/` (icon, desktop file), `docs/`.
 
 ```
 app.go                application lifecycle, renderer and decoder setup
@@ -45,11 +45,11 @@ docs/                 these documents
 pip.go                picture in picture: choosing a way, closing, the old whole-page window
 pip_capture.go        the pop-up that shows frames copied from the page
 pip_mirror.go         the fallback video-only view for plain video files
-pip_scripts.go        the scripts the fallbacks run inside pages
+pipscripts/           the scripts the fallbacks run inside pages
 pip_kwin.go           keeping the pop-up on top on KDE
 webauthn.go           passkeys: requests, asking, making and signing
 webauthn_store.go     passkeys saved on disk, encrypted
-webauthn_cbor.go      the CBOR a passkey needs
+cbor/                 the CBOR a passkey needs
 
 authenticator.go      one-time codes (TOTP), the encrypted vault and the optional PIN
 authenticator_ui.go   the Authenticator window, import/export and its Settings rows
@@ -61,9 +61,9 @@ agent.go              JSON-over-Unix-socket control interface
 agent_ext.go          its extension commands
 record.go             network recording: what every request and response looked like
 record_c.go           reads HTTP headers in C (the Go bindings crash on some)
-assets/js/netrec.js   page side of recording: fetch/XHR/form bodies
-redact.go             removes tokens, keys and cookie values from every agent reply
-redact_test.go        tests for the redactor
+src/assets/js/netrec.js   page side of recording: fetch/XHR/form bodies
+redact/               removes tokens, keys and cookie values from every agent reply
+                      (with its tests)
 
 extensions.go         extension manifests and the extension manager
 extinstall.go         installing, removing and enabling extensions
@@ -89,29 +89,29 @@ extnet.go             extension networking
 extnative.go          native messaging
 extscheme.go          the extension URL scheme (cgo)
 extension_ui.go       extension toolbar buttons, popups and panels
-assets/style.css      the stylesheet
-assets/js/            scripts the browser runs inside pages:
+src/assets/style.css      the stylesheet
+src/assets/js/            scripts the browser runs inside pages:
                         picker.js (element picker), wheel.js (smooth wheel),
                         youtube.js (YouTube ad data), pipbutton.js (the
                         Picture-in-Picture button), pipcapture.js (copying
                         the video out), webauthn.js (passkeys),
                         compat.js (site fixes), reader.js, webext.js and
                         ext_store.js (extensions)
-assets/filters/       EasyList, EasyPrivacy and hosts lists (downloaded by build.sh)
+src/assets/filters/       EasyList, EasyPrivacy and hosts lists (downloaded by build.sh)
 ```
 
 ## Testing
 
 ```bash
-go test .                # the redactor, settings, codes (RFC 6238 vectors), the encrypted vault and PIN,
+go test ./src/...              # the redactor, settings, codes (RFC 6238 vectors), the encrypted vault and PIN,
                          # import and export, including a Proton backup
 ```
 
 `FASTY_SELFTEST=script fasty-browser` drives a separate instance through a
 script (open pages, type, press keys, take screenshots); the verbs are listed
-at the top of `selftest.go`. The agent socket ([agent.md](agent.md)) is the other way to test
+at the top of `src/selftest.go`. The agent socket ([agent.md](agent.md)) is the other way to test
 a running browser.
 
 ## Releases
 
-`packaging/make-release.sh` builds the tarball and `SHA256SUMS` into `dist/`; `packaging/make-packages.sh` then builds the `.deb`, `.rpm` and AppImage from it (needs `nfpm` and `appimagetool`). The version is in `store.go`.
+`packaging/make-release.sh` builds the tarball and `SHA256SUMS` into `dist/`; `packaging/make-packages.sh` then builds the `.deb`, `.rpm` and AppImage from it (needs `nfpm` and `appimagetool`). The version is in `src/store.go`.

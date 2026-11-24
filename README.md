@@ -65,7 +65,7 @@ please [open an issue](https://github.com/fasthand-studio/FastyBrowser/issues)
 with the site or extension, what you expected, and what happened.
 
 Developers are welcome: fix a bug, improve extension support, add a site fix
-to `assets/js/compat.js`, or send a pull request. Start with
+to `src/assets/js/compat.js`, or send a pull request. Start with
 [docs/development.md](docs/development.md).
 
 ## Documentation

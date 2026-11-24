@@ -5,7 +5,7 @@ package main
 // through WebKitUserContentFilterStore as before.
 
 /*
-#cgo LDFLAGS: ${SRCDIR}/adblock-ffi/target/release/libfasty_adblock.a -ldl -lm -lpthread
+#cgo LDFLAGS: ${SRCDIR}/../adblock-ffi/target/release/libfasty_adblock.a -ldl -lm -lpthread
 #include <stdlib.h>
 #include <malloc.h>
 

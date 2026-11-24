@@ -22,7 +22,7 @@ browser, so blocked ad and tracker requests are never made.
 ## YouTube
 
 YouTube's own ads are part of the page itself and have no separate URL to
-block, so `assets/js/youtube.js` works the way Brave's and uBlock Origin's
+block, so `src/assets/js/youtube.js` works the way Brave's and uBlock Origin's
 YouTube scriptlets do:
 
 - the inline player response never carries ad keys;
@@ -40,7 +40,7 @@ effort, not a guarantee.
 
 ## Site compatibility
 
-`assets/js/compat.js` holds small fixes for sites that expect things WebKitGTK
+`src/assets/js/compat.js` holds small fixes for sites that expect things WebKitGTK
 lacks. Today it makes GitHub load its sign-in options (Google, Apple) and
 stops GitHub's tab bars from slowing scrolling. Fixes are limited to the one
 site they are for.

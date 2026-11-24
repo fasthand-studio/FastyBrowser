@@ -5,7 +5,7 @@
 set -e
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
-VERSION=$(sed -n 's/^[[:space:]]*version *= *"\([0-9][0-9.]*\).*/\1/p' store.go | head -1)
+VERSION=$(sed -n 's/^[[:space:]]*version *= *"\([0-9][0-9.]*\).*/\1/p' src/store.go | head -1)
 ARCH=$(uname -m)
 STAGE="$HERE/dist/fasty-browser-$VERSION-linux-$ARCH"
 [ -d "$STAGE" ] || { echo "run packaging/make-release.sh first" >&2; exit 1; }

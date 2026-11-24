@@ -20,7 +20,7 @@ signed in. That needs Facebook's cookies to be `SameSite=None`, but WebKitGTK
 stores them as `Lax`, so the check came back empty and sign-in failed. Fasty
 sets Meta's secure cookies (facebook.com, instagram.com, messenger.com,
 threads.net) to `SameSite=None` again after they change. Other sites are left as
-they set them (`metacookies.go`).
+they set them (`src/metacookies.go`).
 
 ## Picture in picture
 
@@ -42,16 +42,16 @@ loaded.
   full screen.
 - It works while another tab is in front: the page of a tab whose video is
   being copied is kept on screen (unseen) so WebKit doesn't throttle it.
-- How it works: `assets/js/pipcapture.js` draws each frame small (about 30 a
+- How it works: `src/assets/js/pipcapture.js` draws each frame small (about 30 a
   second, sharper if you make the window bigger) onto a canvas, encodes it as a
   JPEG and sends it to the browser, which shows it in the window
-  (`pip_capture.go`). It costs some CPU in the page while it runs: about a
+  (`src/pip_capture.go`). It costs some CPU in the page while it runs: about a
   quarter of a core more (54% against 31% of a core for the same YouTube
   video without it, in testing). Video decoding itself is on the CPU by
   design (see Install), so the GPU isn't doing that work.
 - Videos whose pixels the page doesn't let scripts read (some cross-origin
   files, protected video) can't be copied. A plain video file then plays in a
-  small video-only view (`pip_mirror.go`, which uses a second view and some
+  small video-only view (`src/pip_mirror.go`, which uses a second view and some
   extra memory); anything else moves the tab's whole page into the pop-up with
   only the video showing.
 - If the tab goes to another page, the pop-up closes.
@@ -71,8 +71,8 @@ Google" options. Fasty defines the standard API (`navigator.credentials`,
   passkeys from your phone or other browsers are not available here. The
   confirmation dialog counts as the "user verification" some sites ask for,
   which is weaker than a fingerprint or PIN.
-- `webauthn.go`, `webauthn_store.go`, `webauthn_cbor.go` and
-  `assets/js/webauthn.js` hold the code.
+- `src/webauthn.go`, `src/webauthn_store.go`, `cbor/cbor.go` and
+  `src/assets/js/webauthn.js` hold the code.
 
 ## Authenticator
 
@@ -121,7 +121,7 @@ open-source pieces and one small helper:
   `gcc` is present). WebKit starts the web process with
   `bwrap --args FD -- WebKitWebProcess`; the helper adds the two UVM device
   nodes to that sandbox's arguments, and nothing else. The sandbox stays on.
-- `gpudecode.go` checks what's there, sets the variables, builds the registry
+- `src/gpudecode.go` checks what's there, sets the variables, builds the registry
   the first time (a few seconds) and restarts Fasty once with the helper
   loaded. Settings shows what is missing if the switch is greyed out.
 

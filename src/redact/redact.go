@@ -1,4 +1,5 @@
-package main
+// Package redact removes secrets from text, headers, cookies and JSON values.
+package redact
 
 import (
 	"bytes"
@@ -14,7 +15,7 @@ import (
 // [REDACTED]; names, headers and cookie attributes stay, so an agent can still
 // see what was sent and how a cookie was set.
 
-const redacted = "[REDACTED]"
+const Placeholder = "[REDACTED]"
 
 // sensitiveNames are the parameter, field, header and cookie names whose
 // values are secrets (matched whole, case-insensitively, after splitting off
@@ -42,15 +43,15 @@ func redactedLen(v string) string {
 	return "[REDACTED " + strconv.Itoa(len(v)) + " chars]"
 }
 
-// redactString removes secrets from free text.
-func redactString(s string) string {
+// String removes secrets from free text.
+func String(s string) string {
 	if len(s) < 6 {
 		return s
 	}
-	s = reKnown.ReplaceAllString(s, redacted)
-	s = reJWT.ReplaceAllString(s, redacted)
-	s = reBearer.ReplaceAllString(s, "${1}${2}"+redacted)
-	s = reHeader.ReplaceAllString(s, "${1}"+redacted)
+	s = reKnown.ReplaceAllString(s, Placeholder)
+	s = reJWT.ReplaceAllString(s, Placeholder)
+	s = reBearer.ReplaceAllString(s, "${1}${2}"+Placeholder)
+	s = reHeader.ReplaceAllString(s, "${1}"+Placeholder)
 	s = reJSON.ReplaceAllStringFunc(s, func(m string) string {
 		p := reJSON.FindStringSubmatch(m)
 		if strings.HasPrefix(p[2], "[REDACTED") || p[2] == "[EMPTY]" {
@@ -68,9 +69,9 @@ func redactString(s string) string {
 	return s
 }
 
-// redactCookieHeader hides the values of "a=b; c=d" (Cookie) or
+// CookieHeader hides the values of "a=b; c=d" (Cookie) or
 // "a=b; Path=/; SameSite=Lax" (Set-Cookie): names and attributes stay.
-func redactCookieHeader(v string) string {
+func CookieHeader(v string) string {
 	parts := strings.Split(v, ";")
 	for i, p := range parts {
 		name, _, ok := strings.Cut(p, "=")
@@ -82,68 +83,50 @@ func redactCookieHeader(v string) string {
 		case "path", "domain", "expires", "max-age", "samesite", "secure", "httponly", "priority", "partitioned":
 			continue
 		}
-		parts[i] = name + "=" + redacted
+		parts[i] = name + "=" + Placeholder
 	}
 	return strings.Join(parts, ";")
 }
 
-// redactHeader hides a header value by its name.
-func redactHeader(name, value string) string {
+// Header hides a header value by its name.
+func Header(name, value string) string {
 	switch n := strings.ToLower(name); {
 	case n == "cookie" || n == "set-cookie":
-		return redactCookieHeader(value)
+		return CookieHeader(value)
 	case n == "authorization" || n == "proxy-authorization":
-		return redacted
+		return Placeholder
 	case strings.Contains(n, "token") || strings.Contains(n, "lsd") || strings.Contains(n, "nonce") || strings.Contains(n, "dtsg") || strings.Contains(n, "session") || strings.Contains(n, "secret") || strings.Contains(n, "csrf") ||
 		strings.Contains(n, "api-key") || strings.Contains(n, "apikey") || strings.Contains(n, "auth"):
-		return redacted
+		return Placeholder
 	case n == "location" || n == "referer" || n == "origin" || n == "content-location":
-		return redactString(value)
+		return String(value)
 	}
-	return redactString(value)
+	return String(value)
 }
 
-func redactValue(v any) any {
+func Value(v any) any {
 	switch x := v.(type) {
 	case string:
-		return redactString(x)
+		return String(x)
 	case []any:
 		for i := range x {
-			x[i] = redactValue(x[i])
+			x[i] = Value(x[i])
 		}
 	case map[string]any:
 		for k, e := range x {
 			if s, ok := e.(string); ok && regexp.MustCompile(`(?i)^`+sensitiveNames+`$`).MatchString(k) && len(k) > 3 {
 				if len(s) > 0 {
-					x[k] = redacted
+					x[k] = Placeholder
 				}
 				continue
 			}
-			x[k] = redactValue(e)
+			x[k] = Value(e)
 		}
 	}
 	return v
 }
 
-// redactReply makes a reply safe to hand to an agent.
-func redactReply(r agentReply) agentReply {
-	r.Error = redactString(r.Error)
-	if r.Result == nil {
-		return r
-	}
-	raw, err := json.Marshal(r.Result)
-	if err != nil {
-		return r
-	}
-	var v any
-	if json.Unmarshal(raw, &v) != nil {
-		return r
-	}
-	r.Result = redactValue(v)
-	return r
-}
-
-func marshalNoEscape(v any) []byte {
+func MarshalNoEscape(v any) []byte {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false)

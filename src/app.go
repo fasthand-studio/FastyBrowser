@@ -207,13 +207,11 @@ func pickRenderer() {
 	}
 	if _, err := os.Stat("/proc/driver/nvidia"); err == nil {
 		os.Setenv("GSK_RENDERER", "gl")
-		// WebKit's DMA-BUF path to the compositor is slow on NVIDIA's driver:
-		// in a scripted scroll of a Wikipedia page the page process used 6 s of
-		// CPU in 10 s with it and 3 s without, and frames came 60 per second
-		// at best instead of every ~9 ms. Pages still use the GPU either way.
-		if os.Getenv("WEBKIT_DISABLE_DMABUF_RENDERER") == "" {
-			os.Setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
-		}
+		// Do NOT set WEBKIT_DISABLE_DMABUF_RENDERER here. In WebKitGTK 2.46+
+		// DMA-BUF is the only GPU path to the compositor; disabling it makes
+		// every page render in software (webkit://gpu shows "Shared Memory"
+		// buffers and policy "never"), whatever the hardware acceleration
+		// setting says.
 	}
 }
 

@@ -1,5 +1,6 @@
 // The little CBOR a passkey's attestation needs.
-package main
+// Package cbor is the little CBOR encoder a passkey attestation needs.
+package cbor
 
 import (
 	"encoding/binary"
@@ -7,7 +8,7 @@ import (
 
 // ---- CBOR (just what a passkey needs) -----------------------------------------
 
-func cborHead(major byte, n uint64) []byte {
+func Head(major byte, n uint64) []byte {
 	switch {
 	case n < 24:
 		return []byte{major<<5 | byte(n)}
@@ -22,19 +23,19 @@ func cborHead(major byte, n uint64) []byte {
 	}
 }
 
-func cborInt(v int) []byte {
+func Int(v int) []byte {
 	if v >= 0 {
-		return cborHead(0, uint64(v))
+		return Head(0, uint64(v))
 	}
-	return cborHead(1, uint64(-1-v))
+	return Head(1, uint64(-1-v))
 }
 
-func cborBytes(b []byte) []byte { return append(cborHead(2, uint64(len(b))), b...) }
+func Bytes(b []byte) []byte { return append(Head(2, uint64(len(b))), b...) }
 
-func cborText(s string) []byte { return append(cborHead(3, uint64(len(s))), s...) }
+func Text(s string) []byte { return append(Head(3, uint64(len(s))), s...) }
 
-func cborMap(pairs ...[]byte) []byte {
-	out := cborHead(5, uint64(len(pairs)/2))
+func Map(pairs ...[]byte) []byte {
+	out := Head(5, uint64(len(pairs)/2))
 	for _, p := range pairs {
 		out = append(out, p...)
 	}

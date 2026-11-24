@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"fastybrowser/src/cbor"
 	"fmt"
 	"net/url"
 	"sort"
@@ -239,7 +240,7 @@ func (b *Browser) passkeyCreate(t *Tab, r waRequest, origin string, challenge []
 func (s *passkeyStore) makeCredential(r waRequest, origin string, challenge, userHandle []byte) (map[string]any, *waError) {
 	master, err := masterKey()
 	if err != nil {
-		return nil, &waError{"UnknownError", "Couldn't get the key that protects passkeys."}
+		return nil, &waError{"UnknownError", "Couldn't get the key that protects cbor."}
 	}
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -267,8 +268,8 @@ func (s *passkeyStore) makeCredential(r waRequest, origin string, challenge, use
 	x, y := make([]byte, 32), make([]byte, 32)
 	priv.PublicKey.X.FillBytes(x)
 	priv.PublicKey.Y.FillBytes(y)
-	cose := cborMap(cborInt(1), cborInt(2), cborInt(3), cborInt(-7), cborInt(-1), cborInt(1),
-		cborInt(-2), cborBytes(x), cborInt(-3), cborBytes(y))
+	cose := cbor.Map(cbor.Int(1), cbor.Int(2), cbor.Int(3), cbor.Int(-7), cbor.Int(-1), cbor.Int(1),
+		cbor.Int(-2), cbor.Bytes(x), cbor.Int(-3), cbor.Bytes(y))
 	rpHash := sha256.Sum256([]byte(r.RPID))
 	auth := append([]byte{}, rpHash[:]...)
 	auth = append(auth, 0x01|uvFlag(r.UV)|0x40, 0, 0, 0, 0)
@@ -276,7 +277,7 @@ func (s *passkeyStore) makeCredential(r waRequest, origin string, challenge, use
 	auth = append(auth, byte(len(id)>>8), byte(len(id)))
 	auth = append(auth, id...)
 	auth = append(auth, cose...)
-	att := cborMap(cborText("fmt"), cborText("none"), cborText("attStmt"), cborMap(), cborText("authData"), cborBytes(auth))
+	att := cbor.Map(cbor.Text("fmt"), cbor.Text("none"), cbor.Text("attStmt"), cbor.Map(), cbor.Text("authData"), cbor.Bytes(auth))
 	spki, _ := x509.MarshalPKIXPublicKey(&priv.PublicKey)
 	return map[string]any{
 		"id":                b64.EncodeToString(id),
@@ -342,7 +343,7 @@ func (b *Browser) passkeyGet(t *Tab, r waRequest, origin string, challenge []byt
 func (s *passkeyStore) assert(k passkey, r waRequest, origin string, challenge []byte) (map[string]any, *waError) {
 	master, err := masterKey()
 	if err != nil {
-		return nil, &waError{"UnknownError", "Couldn't get the key that protects passkeys."}
+		return nil, &waError{"UnknownError", "Couldn't get the key that protects cbor."}
 	}
 	id, _ := b64.DecodeString(k.ID)
 	der, err := openKey(master, id, k.Key)

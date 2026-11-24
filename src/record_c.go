@@ -43,6 +43,7 @@ static const char *sb_mime(gpointer r) { return sb_is_response(r) ? webkit_uri_r
 import "C"
 
 import (
+	"fastybrowser/src/redact"
 	"strings"
 	"unsafe"
 
@@ -58,7 +59,7 @@ func unpackHeaders(c *C.char) [][]string {
 	var out [][]string
 	for _, line := range strings.Split(C.GoString(c), "\n") {
 		if k, v, ok := strings.Cut(line, "\x01"); ok {
-			out = append(out, []string{k, redactHeader(k, v)})
+			out = append(out, []string{k, redact.Header(k, v)})
 		}
 	}
 	return out

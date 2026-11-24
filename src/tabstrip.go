@@ -38,7 +38,10 @@ func faviconWidget(t *Tab, size int) gtk.Widgetter {
 	return l
 }
 
-func setClass(w interface{ AddCSSClass(string); RemoveCSSClass(string) }, class string, on bool) {
+func setClass(w interface {
+	AddCSSClass(string)
+	RemoveCSSClass(string)
+}, class string, on bool) {
 	if on {
 		w.AddCSSClass(class)
 	} else {

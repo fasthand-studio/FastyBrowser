@@ -138,7 +138,7 @@ and plain findings.
 
 ## Secrets are redacted
 
-Every reply on the socket passes through a redactor (`redact.go`). Tokens,
+Every reply on the socket passes through a redactor (`redact/redact.go`). Tokens,
 API keys, passwords, session and CSRF cookies, `Authorization` headers and
 OAuth codes are replaced with `[REDACTED N chars]`, so an agent can see what
 was sent without seeing the secret. This cannot be turned off.

@@ -3,11 +3,12 @@
 // logged: method, URL, request and response headers, redirects and their
 // Set-Cookie lines, status, failures, and bodies where WebKit or the page
 // lets us see them. Secrets are redacted when the log is read, not stored
-// as-is in anything an agent can reach (see redact.go).
+// as-is in anything an agent can reach (see redact/redact.go).
 package main
 
 import (
 	"encoding/json"
+	"fastybrowser/src/redact"
 	"os"
 	"path/filepath"
 	"strings"
@@ -211,7 +212,7 @@ func (r *recorder) fromPage(t *Tab, body string) {
 	e := &recEntry{Tab: t.num, Method: m.Method, URL: m.URL, Kind: m.Kind, ReqBody: m.ReqBody,
 		RespBody: m.RespBody, Status: m.Status, Error: m.Error, Done: true}
 	for k, v := range m.ReqHdrs {
-		e.ReqHdrs = append(e.ReqHdrs, []string{k, redactHeader(k, v)})
+		e.ReqHdrs = append(e.ReqHdrs, []string{k, redact.Header(k, v)})
 	}
 	r.add(e)
 }
@@ -309,7 +310,7 @@ func (r *recorder) export(path string) (string, error) {
 	r.mu.Unlock()
 	var v any
 	json.Unmarshal(raw, &v)
-	data := marshalNoEscape(map[string]any{"redacted": true, "entries": redactValue(v)})
+	data := redact.MarshalNoEscape(map[string]any{"redacted": true, "entries": redact.Value(v)})
 	return path, os.WriteFile(path, data, 0o600)
 }
 

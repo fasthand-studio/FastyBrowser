@@ -4,11 +4,11 @@ package main
 // toolbar button for browser actions.
 
 import (
-	"encoding/json"
-	"github.com/diamondburned/gotk4/pkg/glib/v2"
-	javascriptcore "github.com/diamondburned/gotk4-webkitgtk/pkg/javascriptcore/v6"
 	"context"
+	"encoding/json"
 	"fmt"
+	javascriptcore "github.com/diamondburned/gotk4-webkitgtk/pkg/javascriptcore/v6"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"os"
 	"path/filepath"
 	"strings"

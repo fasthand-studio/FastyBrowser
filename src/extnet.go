@@ -5,11 +5,11 @@ package main
 // shim hands those requests to this proxy.
 
 import (
-	webkit "github.com/diamondburned/gotk4-webkitgtk/pkg/webkit/v6"
-	"fmt"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	webkit "github.com/diamondburned/gotk4-webkitgtk/pkg/webkit/v6"
 	"io"
 	"net/http"
 	"net/url"

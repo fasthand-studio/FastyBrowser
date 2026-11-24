@@ -3,6 +3,7 @@ package main
 
 import (
 	"encoding/json"
+	"fastybrowser/src/pipscripts"
 	"fmt"
 	"strings"
 
@@ -62,7 +63,7 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 	}
 	// Pause the tab's copy, and once the mirror has a video, fit and start it.
 	if info.Kind != "frame" { // a frame's video was paused, and covered, by the frame itself
-		t.run(pauseJS, nil)
+		t.run(pipscripts.PauseJS, nil)
 		t.run(`window.__fastyPipUI && window.__fastyPipUI.on(); 0`, nil)
 	}
 	tries, ready := 0, false
@@ -71,7 +72,7 @@ func (b *Browser) makeMirrorPiP(t *Tab, info pipInfo) {
 			return false
 		}
 		tries++
-		evalOn(view, videoJS, func(r string) {
+		evalOn(view, pipscripts.VideoJS, func(r string) {
 			if t.pip != p || ready || r != "ok" {
 				return
 			}
@@ -112,7 +113,7 @@ func (b *Browser) closeMirror(t *Tab, p *PiP, resume bool) {
 			Paused bool    `json:"paused"`
 		}
 		if json.Unmarshal([]byte(out), &st) == nil && st.Time > 0 {
-			t.run(resumeJS(st.Time, !st.Paused), nil)
+			t.run(pipscripts.ResumeJS(st.Time, !st.Paused), nil)
 		}
 	}
 	if !resume {

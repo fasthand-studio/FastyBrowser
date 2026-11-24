@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fastybrowser/src/pipscripts"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	webkit "github.com/diamondburned/gotk4-webkitgtk/pkg/webkit/v6"
@@ -76,7 +77,7 @@ func (b *Browser) popOut(t *Tab) {
 	if t == nil || t.view == nil || t.pip != nil {
 		return
 	}
-	t.run(pipInfoJS, func(out string) {
+	t.run(pipscripts.PipInfoJS, func(out string) {
 		var info pipInfo
 		if json.Unmarshal([]byte(out), &info) != nil || info.Kind == "none" || info.Kind == "" {
 			b.toast("No video on this page", 2)
@@ -148,7 +149,7 @@ func (b *Browser) openPiPWindow(t *Tab, p *PiP, view *webkit.WebView) {
 	p.title.SetEllipsize(pango.EllipsizeEnd)
 	p.title.AddCSSClass("caption")
 	bar.Append(p.title)
-	fit := flatButton("view-fullscreen-symbolic", "Fill the Window with the Video", func() { evalOn(view, videoJS, nil) })
+	fit := flatButton("view-fullscreen-symbolic", "Fill the Window with the Video", func() { evalOn(view, pipscripts.VideoJS, nil) })
 	toTab := flatButton("view-paged-symbolic", "Back to Tab", func() {
 		b.popIn(t)
 		b.selectTab(t)
@@ -198,7 +199,7 @@ func (b *Browser) openPiPWindow(t *Tab, p *PiP, view *webkit.WebView) {
 	if p.mirror == nil {
 		coreglib.TimeoutAdd(250, func() bool {
 			if t.pip == p {
-				t.run(videoJS, nil)
+				t.run(pipscripts.VideoJS, nil)
 				go keepAbove(pipTitle)
 			}
 			return false
@@ -243,7 +244,7 @@ func (b *Browser) popIn(t *Tab) {
 	}
 	// Clear the PiP styles while the view is still in the floating window,
 	// then move it back once the page looks normal again.
-	t.run(unVideoJS, func(string) {
+	t.run(pipscripts.UnVideoJS, func(string) {
 		p.win.SetChild(nil)
 		p.win.Destroy()
 		b.stack.Remove(p.placeholder)

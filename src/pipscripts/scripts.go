@@ -1,13 +1,14 @@
 // The scripts picture in picture runs inside pages.
-package main
+// Package pipscripts has the page scripts that Picture in Picture injects.
+package pipscripts
 
 import (
 	"fmt"
 )
 
-// pipInfoJS describes the page's main video: which site, where to find it
+// PipInfoJS describes the page's main video: which site, where to find it
 // again, and how far it has played.
-const pipInfoJS = `(() => {
+const PipInfoJS = `(() => {
   const vs = [...document.querySelectorAll('video')].filter(v => v.readyState > 0 || v.currentSrc);
   if (!vs.length) return JSON.stringify({kind: 'none'});
   const area = v => v.clientWidth * v.clientHeight;
@@ -23,11 +24,11 @@ const pipInfoJS = `(() => {
     volume: v.volume, page: location.href});
 })()`
 
-// pauseJS stops the page's own copy while its video plays in the window.
-const pauseJS = `(() => { document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} }); return 0; })()`
+// PauseJS stops the page's own copy while its video plays in the window.
+const PauseJS = `(() => { document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} }); return 0; })()`
 
 // playJS makes the page's main video play from a time, quietly resuming it.
-func resumeJS(t float64, play bool) string {
+func ResumeJS(t float64, play bool) string {
 	return fmt.Sprintf(`(() => {
   // YouTube's player manages its own buffer, and undoes a raw seek past it,
   // so go through its API there.
@@ -44,7 +45,7 @@ func resumeJS(t float64, play bool) string {
 })()`, t, play, t, play)
 }
 
-// videoJS finds the page's main video (one that is playing, else the
+// VideoJS finds the page's main video (one that is playing, else the
 // biggest) and makes it fill the window: everything else on the page is
 // hidden, the video is stretched over it and given WebKit's own controls
 // (the site's sit on top of it, hidden too). Every box the video is in is
@@ -52,7 +53,7 @@ func resumeJS(t float64, play bool) string {
 // them, so one left lower on the page would push the picture down. Full screen would be simpler,
 // but WebKitGTK stops drawing video in full screen when the window itself
 // stays as it is. Returns "none" if there is no video.
-const videoJS = `(() => {
+const VideoJS = `(() => {
   const vs = [...document.querySelectorAll('video')].filter(v => v.readyState > 0 || v.currentSrc);
   if (!vs.length) return 'none';
   const area = v => v.clientWidth * v.clientHeight;
@@ -90,8 +91,8 @@ const videoJS = `(() => {
   return 'ok';
 })()`
 
-// unVideoJS puts the page back as it was.
-const unVideoJS = `(() => {
+// UnVideoJS puts the page back as it was.
+const UnVideoJS = `(() => {
   document.getElementById('fasty-pip-style')?.remove();
   const v = document.querySelector('video[data-fasty-pip]');
   if (v) v.controls = v.getAttribute('data-fasty-pip') === 'controls';

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fastybrowser/src/redact"
 	"fmt"
 	"log"
 	"net"
@@ -153,7 +154,7 @@ func handleAgent(b *Browser, conn net.Conn) {
 func writeReply(conn net.Conn, r agentReply) {
 	r.OK = r.Error == ""
 	// Nothing leaves the browser for an agent without passing the redactor.
-	data := bytes.TrimRight(marshalNoEscape(redactReply(r)), "\n")
+	data := bytes.TrimRight(redact.MarshalNoEscape(redactReply(r)), "\n")
 	conn.Write(append(data, '\n'))
 }
 
@@ -539,7 +540,7 @@ func doAgentCmd(b *Browser, cmd agentCmd, ch chan<- agentReply) {
 			}
 			var out []map[string]any
 			for _, c := range cs {
-				out = append(out, map[string]any{"name": c.Name(), "value": redacted, "domain": c.Domain(), "path": c.Path(),
+				out = append(out, map[string]any{"name": c.Name(), "value": redact.Placeholder, "domain": c.Domain(), "path": c.Path(),
 					"secure": c.Secure(), "http_only": c.HTTPOnly(), "same_site": fmt.Sprint(c.SameSitePolicy())})
 			}
 			ch <- agentReply{OK: true, Result: out}
@@ -586,3 +587,21 @@ Interception (page-made fetch/XHR/beacon only; for testing your own sites; match
 Popups: popups, popup-select{tab}`
 
 const elementsScript = `JSON.stringify([...document.querySelectorAll('a[href],button,input,select,textarea,[role=button],[onclick]')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0}).slice(0,150).map((e,i)=>{e.setAttribute('data-fasty-i',i);return {selector:'[data-fasty-i="'+i+'"]',tag:e.tagName.toLowerCase(),type:e.type||undefined,text:(e.innerText||e.value||e.placeholder||e.getAttribute('aria-label')||'').trim().slice(0,80),href:e.href||undefined}}))`
+
+// redactReply makes a reply safe to hand to an agent.
+func redactReply(r agentReply) agentReply {
+	r.Error = redact.String(r.Error)
+	if r.Result == nil {
+		return r
+	}
+	raw, err := json.Marshal(r.Result)
+	if err != nil {
+		return r
+	}
+	var v any
+	if json.Unmarshal(raw, &v) != nil {
+		return r
+	}
+	r.Result = redact.Value(v)
+	return r
+}
