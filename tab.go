@@ -48,6 +48,7 @@ func newTab(b *Browser, url, title string, pinned, private bool) *Tab {
 	t := &Tab{id: fmt.Sprintf("%08x", rand.Uint32()), b: b, url: url, title: title, pinned: pinned, private: private,
 		lastSeen: now(), num: tabSeq}
 	if url != "" && !private {
+		t.favicon = savedIcon(hostOf(url))
 		t.lookupIcon()
 	}
 	return t
@@ -126,8 +127,14 @@ func (t *Tab) wire(view *webkit.WebView) {
 		try(func() {
 			if f := view.Favicon(); f != nil {
 				t.favicon = gdk.BaseTexture(f)
+				if !t.private {
+					saveIcon(hostOf(t.url), f)
+				}
 			}
 		})
+		if t.favicon == nil && !t.private {
+			t.favicon = savedIcon(hostOf(t.url)) // keep the old icon while the page loads
+		}
 		t.changed()
 	})
 	view.NotifyProperty("estimated-load-progress", func() {
@@ -169,6 +176,10 @@ func (t *Tab) wire(view *webkit.WebView) {
 	})
 	view.ConnectDecidePolicy(t.onPolicy)
 	view.ConnectCreate(t.onCreate)
+	view.ConnectResourceLoadStarted(func(res *webkit.WebResource, req *webkit.URIRequest) { rec.watch(t, res, req) })
+	if rec.active() {
+		t.hookRecording("window.__fastyRecOn=true;\n" + t.b.app.engine.netrec)
+	}
 	view.ConnectClose(func() { t.b.closeTab(t) })
 	view.ConnectMouseTargetChanged(func(hit *webkit.HitTestResult, _ uint) {
 		if hit.ContextIsLink() {
@@ -281,7 +292,13 @@ func (t *Tab) lookupIcon() {
 		var tex gdk.Texturer
 		var err error
 		try(func() { tex, err = db.FaviconFinish(res) })
-		if err != nil || tex == nil || t.favicon != nil {
+		if err != nil || tex == nil {
+			return
+		}
+		if !t.private {
+			saveIcon(hostOf(t.url), tex)
+		}
+		if t.favicon != nil {
 			return
 		}
 		t.favicon = gdk.BaseTexture(tex)

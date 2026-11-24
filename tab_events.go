@@ -165,6 +165,8 @@ func (t *Tab) onMessage(body string) {
 			if t.b.app.extensions != nil {
 				t.b.app.extensions.HandleWebExternal(body, t)
 			}
+		case "netrec":
+			rec.fromPage(t, body)
 		case "webauthn":
 			t.b.webauthn(t, body)
 		case "pip":

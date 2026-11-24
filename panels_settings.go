@@ -331,5 +331,35 @@ func agentGroup(b *Browser) *adw.PreferencesGroup {
 	g.SetDescription("A private socket (" + agentSockPath() + ") lets a script or AI agent running as you read pages, click and run JavaScript in your tabs. Off by default: turn it on only if you use that, since anything running as your user could then use it.")
 	r := switchRow(b, "Allow scripts and agents to control Fasty", "agent_socket", func(d *SettingsData) *bool { return &d.AgentSocket }, false)
 	g.Add(r)
+
+	// Network recording: while on, every request from every tab is logged
+	// for the agent to read (record.go), with secrets redacted.
+	row := adw.NewActionRow()
+	row.SetTitle("Record network traffic")
+	row.SetSubtitle("Logs every request and response (headers, redirects, cookies set, POST bodies) so an agent can see what a page does. Tokens and passwords are redacted.")
+	btn := gtk.NewButtonWithLabel("Start recording")
+	btn.SetVAlign(gtk.AlignCenter)
+	label := func() {
+		if rec.active() {
+			btn.SetLabel(fmt.Sprintf("Stop recording (%d)", rec.count()))
+		} else {
+			btn.SetLabel("Start recording")
+		}
+	}
+	label()
+	btn.ConnectClicked(func() {
+		if rec.active() {
+			rec.stop(b)
+			if p, err := rec.export(""); err == nil {
+				b.toast("Recording saved to "+p, 6)
+			}
+		} else {
+			rec.start(b)
+			b.toast("Recording network traffic", 3)
+		}
+		label()
+	})
+	row.AddSuffix(btn)
+	g.Add(row)
 	return g
 }

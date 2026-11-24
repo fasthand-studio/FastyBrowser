@@ -144,8 +144,11 @@
 
   // 4. Server-side-inserted / leftover ads: YouTube marks them in the player's
   // stats ("SSAP, AD") and with .ad-showing. Jump to the end, press Skip.
-  function adPlaying(player) {
+  function adPlaying(player, deep) {
     if (player.classList.contains('ad-showing')) return true;
+    // getStatsForNerds builds a big report; only ask for it on the slow
+    // heartbeat, not on every DOM change (YouTube changes the DOM constantly).
+    if (!deep) return false;
     try {
       const s = player.getStatsForNerds && player.getStatsForNerds();
       return !!(s && s.debug_info && String(s.debug_info).startsWith('SSAP, AD'));
@@ -153,7 +156,7 @@
   }
 
   let wasPaused = false;
-  function guard() {
+  function guard(deep) {
     const player = document.getElementById('movie_player');
     if (!player) return;
 
@@ -166,7 +169,7 @@
       if (v && v.paused) v.play().catch(() => {});
     }
 
-    if (!adPlaying(player)) {
+    if (!adPlaying(player, deep === true)) {
       if (wasPaused) { wasPaused = false; }
       return;
     }
@@ -189,13 +192,13 @@
   const schedule = () => {
     if (queued) return;
     queued = true;
-    requestAnimationFrame(() => { queued = false; guard(); });
+    requestAnimationFrame(() => { queued = false; guard(false); });
   };
   const start = () => {
     new MutationObserver(schedule).observe(document.documentElement, {
       childList: true, subtree: true, attributes: true, attributeFilter: ['class']
     });
-    setInterval(guard, 1000);
+    setInterval(() => guard(true), 1000);
   };
   if (document.documentElement) start();
   else document.addEventListener('DOMContentLoaded', start, { once: true });

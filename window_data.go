@@ -68,6 +68,7 @@ func (b *Browser) clearSiteData(host string, everything bool) {
 	if everything {
 		mgr.Clear(context.Background(), types, 0, nil)
 		b.app.engine.favicons.Clear()
+		clearSavedIcons()
 		b.toast("Cleared cookies, site data and cache", 2)
 		return
 	}

@@ -143,6 +143,7 @@ type Engine struct {
 	pipButton   string
 	compat      string
 	webauthn    string
+	netrec      string
 	ctx         C.gpointer
 }
 
@@ -180,7 +181,7 @@ func pressureFractions(limitMB uint) (cons, strict float64) {
 
 func newEngine(s *Settings) *Engine {
 	e := &Engine{settings: s, picker: asset("js/picker.js"), wheel: asset("js/wheel.js"),
-		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js"), webauthn: asset("js/webauthn.js")}
+		youtube: asset("js/youtube.js"), pipButton: asset("js/pipbutton.js"), compat: asset("js/compat.js"), webauthn: asset("js/webauthn.js"), netrec: asset("js/netrec.js")}
 	page, net := memoryBudget()
 	cons, strict := pressureFractions(page)
 	e.ctx = C.sb_context(C.guint(page), C.guint(net), C.double(cons), C.double(strict))
@@ -199,6 +200,7 @@ func newEngine(s *Settings) *Engine {
 	} else {
 		cookies.SetAcceptPolicy(webkit.CookiePolicyAcceptAlways)
 	}
+	keepMetaCookiesCrossSite(cookies)
 	ctx := e.context()
 	if gpuDecodeActive() {
 		ctx.AddPathToSandbox(filepath.Dir(gpuRegistryPath()), true) // GStreamer's registry for GPU decoding
@@ -238,6 +240,9 @@ func (e *Engine) makeSettings() *webkit.Settings {
 	// page you leave is let go; Back reloads it from the HTTP cache.
 	s.SetEnablePageCache(false)
 	s.SetEnableFullscreen(true)
+	if ua := os.Getenv("FASTY_UA"); ua != "" {
+		s.SetUserAgent(ua)
+	}
 	s.SetEnableSiteSpecificQuirks(true)
 	s.SetMediaPlaybackRequiresUserGesture(false)
 	enableFeatures(s, modernWeb)

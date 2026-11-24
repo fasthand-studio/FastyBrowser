@@ -9,7 +9,6 @@ import (
 	webkit "github.com/diamondburned/gotk4-webkitgtk/pkg/webkit/v6"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 // --- tabs ---
@@ -68,57 +67,21 @@ func (b *Browser) openTab(u string, focus bool, after *Tab, private bool, title 
 	return t
 }
 
-// popup opens a window.open popup in a window of its own. Sign-in popups are
-// expected to be separate windows; showing them as tabs of the main window
-// makes OAuth flows confusing and made the opener go blank when the popup
-// closed. The view is still a related view, so window.opener and postMessage
-// between the two pages keep working.
+// popup opens a window.open / target=_blank page as a tab of this window.
+// The view is still a related view, so window.opener and postMessage between
+// the two pages keep working, and window.close() closes the tab.
 func (b *Browser) popup(opener *Tab, view *webkit.WebView, uri string) {
 	t := adoptTab(b, view, uri, opener.private)
 	t.opener = opener
-
-	// An application window belongs to the GTK app, so it gets the app's icon
-	// in the taskbar and groups with the other windows. A plain GtkWindow has
-	// neither. Set the icon explicitly too, for desktops that read it from
-	// the window.
-	win := gtk.NewApplicationWindow(&b.app.Application.Application)
-	win.SetTitle("Fasty")
-	win.SetIconName("fasty-browser")
-	win.SetDefaultSize(560, 680)
-	win.AddCSSClass("popup-window")
-	if b.HasCSSClass("dark") {
-		win.AddCSSClass("dark")
+	b.insert(t, b.place(opener))
+	if x := b.app.extensions; x != nil && x.anyBackground() {
+		x.fire("tabs.onCreated", x.tabInfo(t))
 	}
-	win.SetChild(view)
-	win.ConnectCloseRequest(func() bool {
-		b.closeTab(t)
-		// False lets GTK run the default handler, which actually destroys
-		// the window. Returning true left an empty, blank window on screen
-		// after the page called window.close() at the end of a sign-in.
-		return false
-	})
-	t.popupWin = win
-	b.popups = append(b.popups, t)
-	log.Printf("fasty: popup opened: %s (total %d)", hostOf(uri), len(b.popups))
-
-	// WebKit says a view made for window.open must not be shown until
-	// ready-to-show: showing it on the create signal leaves a white, blank
-	// window (seen next to the real sign-in window). Wait for the page, and
-	// also for the first committed load, for WebKits that don't emit it for
-	// popups. A popup that never loads anything is then never put on screen.
-	shown := false
-	show := func() {
-		if !shown {
-			shown = true
-			win.Present()
-		}
-	}
-	view.ConnectReadyToShow(show)
-	view.ConnectLoadChanged(func(ev webkit.LoadEvent) {
-		if ev == webkit.LoadCommitted {
-			show()
-		}
-	})
+	b.strip.rebuild()
+	// The view must be in the widget tree before onCreate returns.
+	b.selectTab(t)
+	b.saveSession()
+	log.Printf("fasty: popup opened as tab: %s", hostOf(uri))
 }
 
 // newTab has no start page: the field, waiting for where to go.

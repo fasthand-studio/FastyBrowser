@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,6 +15,7 @@ import (
 	"syscall"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 )
 
 // agentPopup, when set, makes tab commands drive a popup window instead of
@@ -39,6 +42,12 @@ type agentCmd struct {
 	Text     string `json:"text,omitempty"`
 	Path     string `json:"path,omitempty"`
 	Selector string `json:"selector,omitempty"`
+
+	Filter string `json:"filter,omitempty"` // record-list: URL text, or :failed :post :redirect :cookies
+	Method string `json:"method,omitempty"`
+	Entry  int    `json:"entry,omitempty"` // record-get: the entry id
+	Limit  int    `json:"limit,omitempty"`
+	Offset int    `json:"offset,omitempty"`
 
 	ID      string                     `json:"id,omitempty"`
 	Page    string                     `json:"page,omitempty"`
@@ -137,7 +146,8 @@ func handleAgent(b *Browser, conn net.Conn) {
 
 func writeReply(conn net.Conn, r agentReply) {
 	r.OK = r.Error == ""
-	data, _ := json.Marshal(r)
+	// Nothing leaves the browser for an agent without passing the redactor.
+	data := bytes.TrimRight(marshalNoEscape(redactReply(r)), "\n")
 	conn.Write(append(data, '\n'))
 }
 
@@ -395,7 +405,100 @@ func doAgentCmd(b *Browser, cmd agentCmd, ch chan<- agentReply) {
 		doAgentExt(b, cmd, ch)
 		return
 
+	case "help":
+		ok(agentHelp)
+
+	case "record-start":
+		rec.start(b)
+		ok("recording started: every request from every tab is logged until record-stop. Secrets are redacted in all output.")
+
+	case "record-stop":
+		rec.stop(b)
+		ok(map[string]any{"recording": false, "entries": rec.count()})
+
+	case "record-status":
+		ok(map[string]any{"recording": rec.active(), "entries": rec.count()})
+
+	case "record-clear":
+		rec.mu.Lock()
+		rec.list, rec.next = nil, 0
+		rec.mu.Unlock()
+		ok(nil)
+
+	case "record-list":
+		ok(rec.query(cmd.Filter, cmd.Method, cmd.Offset, cmd.Limit))
+
+	case "record-get":
+		e := rec.get(cmd.Entry)
+		if e == nil {
+			fail(fmt.Sprintf("no recorded request %d", cmd.Entry))
+			return
+		}
+		ok(e)
+
+	case "record-export":
+		p, err := rec.export(cmd.Path)
+		if err != nil {
+			fail(err.Error())
+			return
+		}
+		ok(p)
+
+	case "cookies":
+		t := agentTab(b)
+		if t == nil {
+			fail("no page")
+			return
+		}
+		uri := cmd.URL
+		if uri == "" {
+			uri = t.url
+		}
+		b.app.engine.session.CookieManager().Cookies(context.Background(), uri, func(res gio.AsyncResulter) {
+			cs, err := b.app.engine.session.CookieManager().CookiesFinish(res)
+			if err != nil {
+				ch <- agentReply{Error: err.Error()}
+				return
+			}
+			var out []map[string]any
+			for _, c := range cs {
+				out = append(out, map[string]any{"name": c.Name(), "value": redacted, "domain": c.Domain(), "path": c.Path(),
+					"secure": c.Secure(), "http_only": c.HTTPOnly(), "same_site": fmt.Sprint(c.SameSitePolicy())})
+			}
+			ch <- agentReply{OK: true, Result: out}
+		})
+		return
+
+	case "elements":
+		t := agentTab(b)
+		if t == nil || t.view == nil {
+			fail("no page")
+			return
+		}
+		t.run(elementsScript, func(result string) {
+			var v any
+			if json.Unmarshal([]byte(result), &v) != nil {
+				v = result
+			}
+			ch <- agentReply{OK: true, Result: v}
+		})
+		return
+
 	default:
 		fail("unknown action: " + cmd.Action)
 	}
 }
+
+const agentHelp = `Fasty agent socket: one JSON object per line, reply {"ok":bool,"result":...,"error":...}.
+All replies are redacted: tokens, API keys, passwords, session cookies and OAuth codes read [REDACTED].
+Pages: tabs, open{url}, navigate{url}, select{tab}, close, back, forward, reload, url, title, content, html, screenshot{path}, state
+Interact: elements (clickable things with selectors), click{selector}, type{selector,text}, eval{script} (sync result only), wait
+Cookies: cookies{url?} (names, domain, path, secure, http_only, same_site; values hidden)
+Network recording (also switchable by the user in Settings > Agent control):
+  record-start, record-stop, record-status, record-clear
+  record-list{filter?,method?,limit?,offset?}  filter: URL text, or :failed :post :redirect :cookies
+  record-get{entry}  full request/response headers, redirects (with Set-Cookie), bodies
+  record-export{path?}  redacted JSON file, mode 600
+Popups: popups, popup-select{tab}`
+
+const elementsScript = `JSON.stringify([...document.querySelectorAll('a[href],button,input,select,textarea,[role=button],[onclick]')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0}).slice(0,150).map((e,i)=>{e.setAttribute('data-fasty-i',i);return {selector:'[data-fasty-i="'+i+'"]',tag:e.tagName.toLowerCase(),type:e.type||undefined,text:(e.innerText||e.value||e.placeholder||e.getAttribute('aria-label')||'').trim().slice(0,80),href:e.href||undefined}}))`
