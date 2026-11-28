@@ -1,7 +1,7 @@
 # Fasty for Windows
 
 The Windows build lives in `windows/`. It is a separate Go module (`fastybrowser-windows`), so the Linux
-build in `src/` is not touched by it and does not need it. Current version: **1.2.0**.
+build in `src/` is not touched by it and does not need it. Current version: **1.3.0**.
 
 ## What it is
 
@@ -26,29 +26,44 @@ Pages are drawn by Chromium here, so the Linux statement "no Chromium" does not 
 | Linux feature | Windows |
 | --- | --- |
 | Tabs down the left, or across the top (`Ctrl+Shift+S`) | Yes, same layout, colours, sizes and light/dark palette |
-| Resizable sidebar, fold it away (`Ctrl+S`) | Yes (drag the edge; hover peek is not done) |
+| Resizable sidebar, fold it away (`Ctrl+S`), peek when folded | Yes (drag the edge; move the pointer to the left edge to peek) |
 | Pinned tabs as tiles, drag to reorder | Yes |
-| Address field with suggestions from tabs, bookmarks, history | Yes |
-| Spotlight new tab, `Ctrl+K` tab switcher | Yes |
+| Spotlight: a search pop-up over the page (`Ctrl+T`, `Ctrl+L`, `Ctrl+K`, click the address field) | Yes, as a glass pop-up over a blurred picture of the page |
+| Suggestions from tabs, bookmarks, history | Yes |
 | Private tabs (`Ctrl+Shift+N`) | Yes: each is its own profile, deleted when the tab closes |
 | Reopen closed tab, duplicate tab, jump to tab `Ctrl+1` to `9` | Yes |
-| Bookmarks, history | Yes (own pages, search, remove) |
+| Bookmarks, history | Yes (own pages, search, remove), bookmark import from an HTML file |
 | Sleeping tabs (5 minutes by default) | Yes |
 | Session restore | Yes (pinned tabs included) |
-| Shield (ad and tracker blocking) | Yes, with host lists (see below) |
+| Shield (ad and tracker blocking), pause it per site | Yes, with host lists (see below) |
+| Hide Something / What Is Hidden Here (`Ctrl+Shift+H`, `Ctrl+Shift+U`) | Yes: click an element to hide it on that site, bring it back in Settings |
 | Clean links (strip `utm_*`, `fbclid` ...) | Yes |
 | Reading mode (`Ctrl+Shift+R`) | Yes, the Linux `reader.js` |
+| Picture in picture (`Ctrl+Shift+P`, button on a video) | Yes, Chromium's own (checked that it is available, not the window itself) |
 | Authenticator, one-time codes (`Ctrl+Shift+A`) | Yes: TOTP, SHA-1/256/512, 6 to 8 digits; stored encrypted with Windows DPAPI |
 | Find, print, zoom, inspector | Yes, through WebView2 (`Ctrl+F`, `Ctrl+P`, `Ctrl++`, `F12`) |
-| Settings | Yes: engine, appearance, tab layout, sidebar, Shield, clean links, restore, sleep time |
+| Settings (as a pop-up) | Yes, see below |
 | Keyboard shortcuts | Same keys (see the Keyboard Shortcuts page in the app) |
 | Passkeys | Provided by WebView2 and Windows Hello; not checked here |
 
+### Settings
+
+Opens as a pop-up in the middle of the window (`Ctrl+,` or the menu), over the blurred page.
+
+- **General**: search engine (the eight Linux engines plus a custom address with `%s`), appearance
+  (system, light, dark), tabs down the left or across the top, sidebar width, default page zoom, restore tabs
+  on start, sleep time for unused tabs, smooth scrolling and hardware acceleration (next launch), make Fasty
+  the default browser (opens Windows' Default apps), downloads folder.
+- **Privacy**: Shield on or off, the extended list, clean links, sites where Shield is paused, hidden elements
+  per site, clear everything (history now; cookies and cache are deleted when Fasty restarts), import bookmarks.
+- **Open Source**: the licenses of what Fasty uses.
+- **About**: version and what draws the pages.
+
 ## New on Windows
 
-**Voice search.** The microphone button in the address field, the new-tab box and the menu opens a voice
-screen built on the Dictation Dune component: your voice level is a mound of glyphs at the bottom of the
-box and each recognised word flies out of it into the text. Stop talking (or press stop) and it searches.
+**Voice search.** The microphone button in Spotlight and in the address field opens voice search inside the
+glass pop-up. It uses the Dictation Dune component: your voice level is a mound of glyphs at the bottom of
+the box and each recognised word flies out of it into the text. Stop talking (or press stop) and it searches.
 The words come from the speech recognizer that ships with Windows, running on the PC: no audio and no text
 leave the computer (`windows/voice/voice.ps1`). Chromium's own web speech service does not work inside
 WebView2 (it answers "network"), which is why the Windows recognizer is used. Accuracy is that of the
@@ -56,28 +71,32 @@ Windows recognizer, which is good for short phrases and weaker than cloud servic
 
 ## Not done yet (compared with Linux)
 
-Extensions, picture in picture, the agent socket, hiding page elements ("Hide Something"), GPU decode
-setting, the adblock-rust engine (Shield uses host lists, which block less than EasyList rules), a
-downloads panel (Downloads opens the folder; WebView2 shows its own download prompt), the Authenticator's
-PIN, import and export, folded-sidebar hover peek, auto-update, ARM64, and code signing.
+Extensions, the agent socket, GPU video decoding setting, the adblock-rust engine (Shield uses host lists,
+which block less than EasyList rules), a downloads panel and a choice of downloads folder (WebView2 handles
+downloads and saves to Downloads), tracking-prevention and spellcheck switches, the Authenticator's PIN,
+import and export, passkey management, auto-update, ARM64, and code signing.
 
 ## Tested
 
-`fasty.exe --selftest` starts the real app against a local web server and checks 24 things: page loading
-and titles, Shield blocking, `window.open`, address input, back and forward, `javascript:` input being
-searched, the Spotlight new tab, suggestions, bookmarks, history, the Authenticator (code and encrypted
-file), pinning, private tabs, reopen closed tab, the settings page and the top layout, folding the sidebar,
-reading mode, the voice screen receiving words, full screen, sleeping and waking tabs, session saving, and
-closing every tab. All pass on Windows 11 (build 26300).
+`fasty.exe --selftest` starts the real app against a local web server and checks 33 things: page loading and
+titles, Shield blocking, `window.open`, address input, back and forward, `javascript:` input being searched,
+the glass Spotlight and its page snapshot, suggestions, opening from Spotlight in a new tab and in the current
+tab, reading mode, bookmarks, history, bookmark import, the Authenticator (code and encrypted file), pinning,
+private Spotlight and private tabs (no history), reopen closed tab, the Settings pop-up and the top layout,
+a custom search address, folding and peeking the sidebar, voice search receiving words inside Spotlight,
+hiding and showing elements, the picker, picture in picture and page zoom being present, pausing Shield for one
+site, full screen, sleeping and waking tabs, clearing browsing data, session saving, and closing every tab.
+All pass on Windows 11 (build 26300).
 
-Unit tests cover address handling, settings, Shield, bookmarks, history, suggestions, and TOTP against the
-RFC 6238 test vectors. An integration test has Windows synthesize a sentence and checks that the voice
-helper recognises it ("Search for cheap flights to London", with live interim words first).
+Unit tests cover address handling, search engines, settings, Shield, bookmarks, history, suggestions, hidden
+elements, bookmark import and TOTP against the RFC 6238 test vectors. An integration test has Windows
+synthesize a sentence and checks that the voice helper recognises it ("Search for cheap flights to London").
 
 The installer was installed, run (self-test from the installed copy) and uninstalled with nothing left behind.
 
-**Not tested:** Windows 10, speaking into a microphone by a person (the test uses synthesized speech),
-other languages, and any Windows with the WebView2 Runtime missing (the installer warns in that case).
+**Not tested:** Windows 10, a person speaking into a microphone (the test uses synthesized speech), other
+languages, the picture-in-picture window itself, dragging the sidebar edge by hand, and Windows without the
+WebView2 Runtime (the installer warns in that case).
 
 ## Build
 
@@ -89,11 +108,11 @@ Needs Go 1.27 or newer. Node is only needed to rebuild the voice bundle (`window
 cd windows
 .\build.ps1                      # vet, test, build dist\fasty.exe
 .\build.ps1 -Installer -Zip      # also the installer and the portable zip
-.\build.ps1 -SelfTest            # also run the in-app self-test (opens a window for about 40 s)
+.\build.ps1 -SelfTest            # also run the in-app self-test (opens a window for about a minute)
 ```
 
-Output: `windows/dist/fasty.exe` (about 8 MB), `windows/dist/installer/Fasty-Setup-<version>-x64.exe`
-(about 4.5 MB) and `windows/dist/Fasty-<version>-x64-portable.zip`. CI workflows are in `windows/ci/`
+Output: `windows/dist/fasty.exe` (about 8.5 MB), `windows/dist/installer/Fasty-Setup-<version>-x64.exe`
+(about 4.6 MB) and `windows/dist/Fasty-<version>-x64-portable.zip`. CI workflows are in `windows/ci/`
 until they can be copied to `.github/workflows/` (see its README).
 
 To rebuild the voice bundle: `cd windows/ui-src && npm install && npm run build`.
@@ -102,7 +121,7 @@ Measure memory and idle CPU with `windows\tools\bench.ps1 -SleepMinutes 0` and `
 
 ## Data
 
-- Settings, session, bookmarks, history, Authenticator accounts (encrypted): `%AppData%\FastyBrowser`.
+- Settings, session, bookmarks, history, hidden elements, Authenticator accounts (encrypted): `%AppData%\FastyBrowser`.
 - Web data (cookies, cache): `%LocalAppData%\FastyBrowser\WebView2`.
 - Log: `%LocalAppData%\FastyBrowser\fasty.log`.
 
@@ -117,6 +136,7 @@ sites open (one run each, so treat as indicative; page weight varies between run
 | Sleeping tabs off | 1109 MB | 641 MB | 0.24 % |
 | Sleeping tabs on (default) | 613 MB | 336 MB | 0.10 % |
 
+These were measured on 1.2.0; 1.3.0 adds one more web view (the glass pop-up), kept hidden until used.
 Helium (<https://github.com/imputnet/helium>) patches the Chromium source tree. Fasty on Windows does not
 build Chromium, so those patches do not apply; only runtime flags and tab sleeping are used here.
 
@@ -124,8 +144,9 @@ build Chromium, so those patches do not apply; only runtime flags and tab sleepi
 
 - The browser's own pages are served from a loopback-only server with a random path token, and the app
   accepts privileged messages (settings, bookmarks, voice, Authenticator) only from that origin. Web pages
-  can only report their title, address and shortcuts.
+  can only report their title, address, shortcuts and the element you chose to hide.
 - Only the browser's own pages get the microphone, without a prompt. Websites keep WebView2's normal prompt.
+- The blurred picture behind Spotlight is a snapshot of the window kept in memory only while the pop-up is open.
 - Authenticator accounts are encrypted with DPAPI (tied to your Windows account). The file is useless on
   another account or PC.
 - `javascript:`, `data:` and `file:` text typed in the address field is searched, never run.
