@@ -25,7 +25,7 @@ document.addEventListener('click',function(e){if(e.defaultPrevented||e.button!==
  var a=e.target&&e.target.closest&&e.target.closest('a[href]');
  if(a&&(a.target==='_blank'||e.ctrlKey||e.shiftKey)&&/^https?:/i.test(a.href)){e.preventDefault();post({a:'open',u:a.href})}},true);
 var KEYS={'ctrl+t':1,'ctrl+shift+t':1,'ctrl+shift+n':1,'ctrl+w':1,'ctrl+l':1,'ctrl+k':1,'ctrl+d':1,'ctrl+y':1,
- 'ctrl+alt+b':1,'ctrl+shift+b':1,'ctrl+shift+j':1,'ctrl+,':1,'ctrl+r':1,'f5':1,'ctrl+shift+r':1,'ctrl+shift+s':1,'ctrl+s':1,
+ 'ctrl+alt+b':1,'ctrl+shift+b':1,'ctrl+shift+a':1,'ctrl+shift+j':1,'ctrl+,':1,'ctrl+r':1,'f5':1,'ctrl+shift+r':1,'ctrl+shift+s':1,'ctrl+s':1,
  'ctrl+tab':1,'ctrl+shift+tab':1,'alt+arrowleft':1,'alt+arrowright':1,'ctrl+bracketleft':1,'ctrl+bracketright':1,
  'ctrl+shift+bracketleft':1,'ctrl+shift+bracketright':1,'f11':1,'ctrl+shift+c':1,'ctrl+alt+r':1,'ctrl+f5':1,
  'ctrl+1':1,'ctrl+2':1,'ctrl+3':1,'ctrl+4':1,'ctrl+5':1,'ctrl+6':1,'ctrl+7':1,'ctrl+8':1,'ctrl+9':1};

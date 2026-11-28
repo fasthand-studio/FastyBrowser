@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Authenticator</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="common.css">
+<style>
+.acc{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:var(--frame);margin-bottom:8px}
+.acc .who{flex:1;min-width:0}
+.acc .who b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc .who small{color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.code{font:600 26px/1 "Cascadia Mono",Consolas,monospace;letter-spacing:.06em;padding:6px 10px;border-radius:9px}
+.code:hover{background:var(--side-wash)}
+.next{display:block;text-align:right;color:var(--muted);font:12px Consolas,monospace;margin-top:2px}
+.ring{width:30px;height:30px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:3}
+.ring .bg{stroke:var(--hairline)}
+.ring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .9s linear}
+.ring.low .fg{stroke:var(--danger)}
+@media (prefers-reduced-motion:reduce){.ring .fg{transition:none}}
+form.add{display:grid;gap:8px;margin-top:8px}
+form.add input{width:100%;min-width:0}
+.msg{min-height:20px;color:var(--muted);margin:6px 0}
+.msg.err{color:var(--danger)}
+</style></head>
+<body><div class="page">
+<h1>Authenticator</h1><p class="lead">One-time codes for sites that ask for them. Accounts are encrypted with your Windows account and never leave this PC. Click a code to copy it.</p>
+<div id="list"></div><p class="empty" id="empty" hidden>No accounts yet. Add one below.</p>
+<h2>Add an account</h2>
+<form class="add" id="form" autocomplete="off">
+  <input type="text" id="uri" placeholder="otpauth:// link, or a secret key" aria-label="otpauth link or secret key" spellcheck="false">
+  <input type="text" id="issuer" placeholder="Service (for a secret key), e.g. GitHub" aria-label="Service name" hidden>
+  <input type="text" id="name" placeholder="Account, e.g. you@example.com" aria-label="Account name" hidden>
+  <div><button class="btn" type="submit">Add account</button></div>
+</form>
+<p class="msg" id="msg" role="status"></p>
+<p class="lead" style="font-size:12.5px">Time-based (TOTP) codes only: SHA-1, SHA-256 or SHA-512, 6 to 8 digits, any period. No QR scanning yet: paste the link or the secret key a site shows next to its QR code.</p>
+</div>
+<script src="common.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+setTitle('Authenticator');
+const msg = (t, err) => { $('msg').textContent = t; $('msg').className = 'msg' + (err ? ' err' : ''); };
+function ring(rem, period) {
+  const r = 12, c = 2 * Math.PI * r; const off = c * (1 - rem / period);
+  return '<svg class="ring' + (rem <= 5 ? ' low' : '') + '" viewBox="0 0 30 30" aria-hidden="true"><circle class="bg" cx="15" cy="15" r="12"/><circle class="fg" cx="15" cy="15" r="12" stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + off.toFixed(2) + '"/></svg>';
+}
+function group(c) { return c.length === 6 ? c.slice(0, 3) + ' ' + c.slice(3) : c.length === 8 ? c.slice(0, 4) + ' ' + c.slice(4) : c; }
+async function draw() {
+  const r = await rpc('auth.list'); const list = $('list');
+  if (r.error) { msg(r.error, true); }
+  const items = r.items || []; $('empty').hidden = items.length > 0;
+  // rebuild only when the set changes; otherwise update codes in place so a click is never lost
+  const key = items.map(i => i.id).join(',');
+  if (list.dataset.key !== key) {
+    list.dataset.key = key; list.textContent = '';
+    for (const i of items) {
+      const d = document.createElement('div'); d.className = 'acc'; d.dataset.id = i.id;
+      d.innerHTML = '<div class="who"><b></b><small></small></div><div><button class="code" title="Copy code"></button><span class="next"></span></div><span class="rg"></span><button class="btn danger" title="Remove" aria-label="Remove account">Remove</button>';
+      d.querySelector('b').textContent = i.issuer || i.name; d.querySelector('small').textContent = i.issuer ? i.name : '';
+      d.querySelector('.code').onclick = async e => { await rpc('copy', { text: e.currentTarget.dataset.raw }); msg('Code copied'); setTimeout(() => msg(''), 1800); };
+      d.querySelector('.btn').onclick = async () => { if (confirm('Remove ' + (i.issuer || i.name) + '? You will need its secret key to add it again.')) { await rpc('auth.remove', { id: i.id }); draw(); } };
+      list.appendChild(d);
+    }
+  }
+  for (const i of items) {
+    const d = list.querySelector('[data-id="' + i.id + '"]'); if (!d) continue;
+    const c = d.querySelector('.code'); c.textContent = group(i.code); c.dataset.raw = i.code;
+    d.querySelector('.next').textContent = 'next ' + group(i.next); d.querySelector('.rg').innerHTML = ring(i.remaining, i.period);
+  }
+}
+$('uri').addEventListener('input', () => { const secret = !/^otpauth:/i.test($('uri').value.trim()) && $('uri').value.trim() !== ''; $('issuer').hidden = $('name').hidden = !secret; });
+$('form').addEventListener('submit', async e => {
+  e.preventDefault(); const v = $('uri').value.trim(); if (!v) return;
+  const p = /^otpauth:/i.test(v) ? { uri: v } : { secret: v, issuer: $('issuer').value.trim(), name: $('name').value.trim() };
+  const r = await rpc('auth.add', p);
+  if (r && r.error) msg(r.error, true); else { msg('Added'); $('uri').value = $('issuer').value = $('name').value = ''; $('issuer').hidden = $('name').hidden = true; draw(); setTimeout(() => msg(''), 1800); }
+});
+draw(); setInterval(draw, 1000);
+</script></body></html>

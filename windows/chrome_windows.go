@@ -131,6 +131,8 @@ func (a *app) command(name string, m chromeMsg) {
 		shellOpen(downloadsDir())
 	case "settings":
 		a.openInternal("settings.html", true)
+	case "authenticator":
+		a.openInternal("authenticator.html", true)
 	case "shortcuts":
 		a.openInternal("shortcuts.html", true)
 	case "voice":
@@ -208,6 +210,8 @@ func (a *app) shortcut(k string) {
 		a.command("bookmark", chromeMsg{})
 	case "ctrl+shift+j":
 		a.command("downloads", chromeMsg{})
+	case "ctrl+shift+a":
+		a.command("authenticator", chromeMsg{})
 	case "ctrl+,":
 		a.command("settings", chromeMsg{})
 	case "ctrl+r", "f5":

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
+	"time"
 )
 
 // handleRPC answers calls from the browser's own pages (ui/*.html). The page sends
@@ -75,6 +76,28 @@ func (a *app) handleRPC(t *tab, m pageMsg) {
 	case "voice.stop":
 		a.stopVoice()
 		res = true
+	case "copy":
+		clipboardSet(str("text"))
+		res = true
+	case "auth.list":
+		res = map[string]any{"items": a.authStore().Views(time.Now()), "error": a.authErr}
+	case "auth.add":
+		acc := AuthAccount{Issuer: str("issuer"), Name: str("name"), Secret: str("secret")}
+		var err error
+		if uri := str("uri"); uri != "" {
+			acc, err = ParseOTPAuth(uri)
+		}
+		if err == nil {
+			_, err = a.authStore().Add(acc)
+		}
+		if err != nil {
+			res = map[string]any{"error": err.Error()}
+		} else {
+			res = map[string]any{"ok": true}
+		}
+	case "auth.remove":
+		_ = a.authStore().Remove(str("id"))
+		res = true
 	case "downloads":
 		shellOpen(downloadsDir())
 		res = true
@@ -136,4 +159,16 @@ func (a *app) toast(msg string) {
 	}
 	b, _ := json.Marshal(msg)
 	a.chrome.Eval("window.fasty&&window.fasty.toast(" + string(b) + ")")
+}
+
+// authStore opens the Authenticator's accounts on first use; accounts are encrypted with DPAPI.
+func (a *app) authStore() *AuthStore {
+	if a.auth == nil {
+		s, err := LoadAuthStore(a.dataDir, dpapi{})
+		if err != nil {
+			a.authErr = err.Error()
+		}
+		a.auth = s
+	}
+	return a.auth
 }

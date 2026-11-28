@@ -151,6 +151,22 @@ func (a *app) beginSelfTest(base string) {
 				}
 				return false
 			}},
+		{name: "Authenticator adds an account, shows a code and keeps the secret encrypted", wait: 12 * time.Second,
+			do: func(a *app) { a.command("authenticator", chromeMsg{}) },
+			check: func(a *app) bool {
+				t := internalTab(a, "authenticator.html")
+				if t == nil || !t.ready || t.title != "Authenticator" {
+					return false
+				}
+				if a.auth == nil || len(a.auth.Items) == 0 {
+					m, _ := json.Marshal(map[string]any{"a": "rpc", "id": 7, "m": "auth.add", "p": map[string]any{"uri": "otpauth://totp/Example:me@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"}})
+					a.onTabMessage(t, string(m), ui.base)
+					return false
+				}
+				v := a.auth.Views(time.Now())
+				raw, err := os.ReadFile(filepath.Join(a.dataDir, "authenticator.dat"))
+				return len(v) == 1 && len(v[0].Code) == 6 && err == nil && !strings.Contains(string(raw), "JBSWY3DPEHPK3PXP") && len(raw) > 20
+			}},
 		{name: "pinning moves a tab to the front as a tile", wait: 3 * time.Second,
 			do:    func(a *app) { a.togglePin(tabWith(a, "Gamma")) },
 			check: func(a *app) bool { return a.tabs[0].pinned && a.tabs[0].title == "Gamma" }},

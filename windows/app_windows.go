@@ -302,6 +302,8 @@ type app struct {
 	selftest    *selfTest
 	embedQueue  []*tab
 	voice       *voiceSession
+	auth        *AuthStore
+	authErr     string
 	closed      []closedTab
 	brushFrame  uintptr
 	brushHair   uintptr
