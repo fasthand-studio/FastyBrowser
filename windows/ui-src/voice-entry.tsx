@@ -13,7 +13,7 @@ declare global {
   interface Window {
     fastyVoice: (e: VoiceEvent) => void
     rpc: (m: string, p?: unknown) => Promise<unknown>
-    FastyVoice: { open: (o: OpenOptions) => void; close: () => void }
+    FastyVoice: { mount: (el: HTMLElement, o: OpenOptions) => void; close: () => void }
   }
 }
 
@@ -95,7 +95,7 @@ function VoiceApp({ auto, dark, onSubmit, onCancel }: OpenOptions) {
         processingLabel="searching"
         ariaLabel="Voice search"
         {...c}
-        style={{ width: "min(640px, 94vw)", height: 300, minHeight: 0 }}
+        style={{ width: "100%", height: 280, minHeight: 0 }}
       />
       <p role={error ? "alert" : "status"} style={{ margin: 0, minHeight: 20, maxWidth: 560, textAlign: "center", fontSize: 13, color: error ? (dark ? "#f28b82" : "#b3261e") : c.muted }}>
         {error || (listening ? "Speak now. It searches when you stop talking." : "Audio is turned into text on this PC. Nothing is sent anywhere.")}
@@ -111,28 +111,16 @@ function VoiceApp({ auto, dark, onSubmit, onCancel }: OpenOptions) {
 }
 
 let root: ReturnType<typeof createRoot> | null = null
-let host: HTMLElement | null = null
 
+// The glass card hands over a container; the animation renders inside it.
 window.FastyVoice = {
-  open(o) {
+  mount(el, o) {
     window.FastyVoice.close()
-    host = document.createElement("div")
-    host.id = "voice-overlay"
-    host.setAttribute("role", "dialog")
-    host.setAttribute("aria-modal", "true")
-    host.setAttribute("aria-label", "Voice search")
-    Object.assign(host.style, {
-      position: "fixed", inset: "0", zIndex: "50", display: "grid", placeItems: "center",
-      background: o.dark ? "rgba(19,19,19,0.96)" : "rgba(244,244,244,0.96)",
-    })
-    document.body.appendChild(host)
-    root = createRoot(host)
+    root = createRoot(el)
     root.render(<VoiceApp {...o} />)
   },
   close() {
     root?.unmount()
-    host?.remove()
     root = null
-    host = null
   },
 }
