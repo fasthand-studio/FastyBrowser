@@ -3,7 +3,7 @@
 #   .\build.ps1 -Installer -Zip       also build dist\installer\Fasty-Setup-<ver>-x64.exe and the zip
 #   .\build.ps1 -SelfTest             also run the in-app self-test (opens a window for ~30 s)
 param(
-  [string]$Version = "0.1.0",
+  [string]$Version = "1.2.0",
   [switch]$Installer,
   [switch]$Zip,
   [switch]$SelfTest
