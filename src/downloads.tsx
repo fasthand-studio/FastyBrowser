@@ -106,27 +106,27 @@ export function DownloadPanel() {
   );
 }
 
-const WIN_BASE = "https://github.com/fasthand-studio/FastyBrowser/releases/download/windows-v1.2.0";
+const WIN_BASE = "https://github.com/fasthand-studio/FastyBrowser/releases/download/windows-v1.3.0";
 
 const winPackages = [
   {
     id: "installer",
     label: "Installer",
-    name: "Fasty-Setup-1.2.0-x64.exe",
-    size: "4.45 MB",
-    href: `${WIN_BASE}/Fasty-Setup-1.2.0-x64.exe`,
-    sha256: "d756ed3f3471e6c000bc43358854d2d4e2acc1bf837ec4c6a3a4dc555d210d73",
-    command: "Fasty-Setup-1.2.0-x64.exe /SILENT /CURRENTUSER",
+    name: "Fasty-Setup-1.3.0-x64.exe",
+    size: "4.60 MB",
+    href: `${WIN_BASE}/Fasty-Setup-1.3.0-x64.exe`,
+    sha256: "6eeb1c38bb6c0fc5773fc832461ccf4ac5ec3cdc4f5225762fe2733e2eaa307e",
+    command: "Fasty-Setup-1.3.0-x64.exe /SILENT /CURRENTUSER",
     note: "Installs for your user account without administrator rights, adds a Start Menu entry, and can list Fasty under Default apps. The silent command above is optional; double-click the file to use the wizard.",
   },
   {
     id: "zip",
     label: "Portable zip",
-    name: "Fasty-1.2.0-x64-portable.zip",
-    size: "3.31 MB",
-    href: `${WIN_BASE}/Fasty-1.2.0-x64-portable.zip`,
-    sha256: "f86d182eeb6dc5a9787e0dae1de46c43ae3e6b363de3fe01d5bdd16f2c913ba6",
-    command: "Expand-Archive Fasty-1.2.0-x64-portable.zip -DestinationPath Fasty\n.\\Fasty\\fasty.exe",
+    name: "Fasty-1.3.0-x64-portable.zip",
+    size: "3.51 MB",
+    href: `${WIN_BASE}/Fasty-1.3.0-x64-portable.zip`,
+    sha256: "cd4c703a7c88d7faf5195d0e532ea972e270c3fbd7796953df1393c36784171e",
+    command: "Expand-Archive Fasty-1.3.0-x64-portable.zip -DestinationPath Fasty\n.\\Fasty\\fasty.exe",
     note: "Unzip anywhere and run fasty.exe. Nothing is installed; your settings still live under your user profile.",
   },
 ];
@@ -150,7 +150,7 @@ export function WindowsDownloadPanel() {
     <div className="download-card">
       <div className="download-card-top">
         <div className="platform-mark"><TreeIcon id="global" size={30} color="#0579fe" /></div>
-        <div><strong>Fasty for Windows 1.2.0</strong><span>Windows 10 / 11 · x64</span></div>
+        <div><strong>Fasty for Windows 1.3.0</strong><span>Windows 10 / 11 · x64</span></div>
         <div className="download-state is-available"><span />Release</div>
       </div>
       <div className="package-tabs" role="tablist" aria-label="Windows package format">
@@ -177,8 +177,8 @@ export function WindowsDownloadPanel() {
         <div><small>Engine</small><strong>Edge WebView2</strong></div>
         <div><small>Runtime</small><strong>WebView2 Runtime</strong></div>
       </div>
-      <div className="download-notice"><TreeIcon id="information" size={18} color="#d9b973" dark /><span>Tested on Windows 11 only. The files are not code-signed, so Windows SmartScreen may warn; compare the SHA-256 above. Missing compared with Linux: extensions, picture in picture and hiding page elements. No ARM64 build.</span></div>
-      <div className="download-secondary-links"><a href={`${WIN_BASE}/SHA256SUMS-windows.txt`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/windows-v1.2.0" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/windows.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Windows guide</a></div>
+      <div className="download-notice"><TreeIcon id="information" size={18} color="#d9b973" dark /><span>Tested on Windows 11 only. The files are not code-signed, so Windows SmartScreen may warn; compare the SHA-256 above. Missing compared with Linux: extensions, a downloads panel and the adblock-rust engine. No ARM64 build.</span></div>
+      <div className="download-secondary-links"><a href={`${WIN_BASE}/SHA256SUMS-windows.txt`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/windows-v1.3.0" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/windows.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Windows guide</a></div>
     </div>
   );
 }
