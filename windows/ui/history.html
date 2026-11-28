@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>History</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="common.css"></head>
+<body><div class="page">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><div><h1>History</h1><p class="lead">Pages you visited. Private tabs are never saved.</p></div><button class="btn danger" id="clear">Clear history</button></div>
+<input class="search" id="q" type="search" placeholder="Search history" aria-label="Search history">
+<div id="list"></div><p class="empty" id="empty" hidden>Nothing here yet.</p>
+</div>
+<script src="common.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+setTitle('History');
+let all = [];
+function host(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } }
+function dayLabel(ts) {
+  const d = new Date(ts * 1000), t = new Date(); const s = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((s(t) - s(d)) / 864e5);
+  if (diff === 0) return 'Today'; if (diff === 1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: d.getFullYear() === t.getFullYear() ? undefined : 'numeric' });
+}
+function draw() {
+  const box = $('list'); box.textContent = ''; $('empty').hidden = all.length > 0; $('empty').textContent = $('q').value ? 'Nothing matches.' : 'Nothing here yet.';
+  let last = ''; let ul = null;
+  for (const h of all) {
+    const g = dayLabel(h.visited);
+    if (g !== last) { last = g; const gh = document.createElement('div'); gh.className = 'group'; gh.textContent = g; box.appendChild(gh); ul = document.createElement('ul'); ul.className = 'list'; box.appendChild(ul); }
+    const li = document.createElement('li'); li.className = 'item';
+    const time = new Date(h.visited * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    li.innerHTML = '<span style="color:var(--muted);font-size:12px;width:62px;flex:none"></span><a class="t" style="text-decoration:none;color:inherit"><b></b><small></small></a><button class="x" title="Remove from history" aria-label="Remove from history"></button>';
+    li.firstChild.textContent = time;
+    const a = li.querySelector('a'); a.href = h.url; a.querySelector('b').textContent = h.title || h.url; a.querySelector('small').textContent = host(h.url);
+    a.onclick = e => { e.preventDefault(); rpc('open', { url: h.url }); };
+    const x = li.querySelector('.x'); x.innerHTML = icon.x; x.onclick = async () => { await rpc('history.remove', { url: h.url }); all = all.filter(i => i.url !== h.url); draw(); };
+    ul.appendChild(li);
+  }
+}
+let t0 = 0;
+async function load() { all = await rpc('history.list', { q: $('q').value }) || []; draw(); }
+$('q').addEventListener('input', () => { clearTimeout(t0); t0 = setTimeout(load, 80); });
+$('clear').onclick = async () => { if (confirm('Clear all browsing history?')) { await rpc('history.clear'); all = []; draw(); } };
+load();
+</script></body></html>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Bookmarks</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="common.css"></head>
+<body><div class="page">
+<h1>Bookmarks</h1><p class="lead">Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> on a page, or the star in the address field, to add it.</p>
+<input class="search" id="q" type="search" placeholder="Search bookmarks" aria-label="Search bookmarks">
+<ul class="list" id="list"></ul><p class="empty" id="empty" hidden>No bookmarks yet.</p>
+</div>
+<script src="common.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+setTitle('Bookmarks');
+let all = [];
+function host(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } }
+function draw() {
+  const q = $('q').value.trim().toLowerCase(); const ul = $('list'); ul.textContent = '';
+  const rows = all.filter(b => !q || (b.title + ' ' + b.url).toLowerCase().includes(q));
+  $('empty').hidden = rows.length > 0; $('empty').textContent = all.length ? 'Nothing matches.' : 'No bookmarks yet.';
+  for (const b of rows) {
+    const li = document.createElement('li'); li.className = 'item';
+    li.innerHTML = '<span style="color:var(--muted)">' + icon.star + '</span><a class="t" style="text-decoration:none;color:inherit"><b></b><small></small></a><button class="x" title="Remove" aria-label="Remove bookmark"></button>';
+    const a = li.querySelector('a'); a.href = b.url; a.querySelector('b').textContent = b.title || b.url; a.querySelector('small').textContent = host(b.url);
+    a.onclick = e => { e.preventDefault(); rpc('open', { url: b.url }); };
+    const x = li.querySelector('.x'); x.innerHTML = icon.x; x.onclick = async () => { all = await rpc('bookmarks.remove', { url: b.url }) || []; draw(); };
+    ul.appendChild(li);
+  }
+}
+$('q').addEventListener('input', draw);
+rpc('bookmarks.list').then(r => { all = r || []; draw(); });
+</script></body></html>

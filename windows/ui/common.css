@@ -1,0 +1,45 @@
+/* Shared by the browser's own pages. Colours are the Linux build's (src/assets/style.css). */
+:root{--frame:#f4f4f4;--ground:#fff;--ink:#171717;--muted:#8c8c8c;--hairline:#e8e8e8;--side-wash:#e4e4e4;--side-hover:#e9e9e9;--side-tile:#ececec;--accent:#3584e4;--private:#8e6bd8;--danger:#b3261e}
+:root[data-theme=dark]{--frame:#131313;--ground:#1c1c1c;--ink:#ededed;--muted:#949494;--hairline:#333;--side-wash:#282828;--side-hover:#212121;--side-tile:#1d1d1d;--accent:#78aeed;--danger:#f28b82}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--ground);color:var(--ink);font:14px/1.45 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ico{width:16px;height:16px}
+.page{max-width:720px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:28px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px}
+h2{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:32px 0 8px}
+.lead{color:var(--muted);margin:0 0 20px}
+.card{background:var(--frame);border-radius:12px;padding:4px 16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--hairline)}
+.row:last-child{border-bottom:0}
+.row small{display:block;color:var(--muted);font-size:12.5px;margin-top:1px}
+.row .grow{flex:1;min-width:0}
+input[type=text],input[type=search],input[type=number],select{height:34px;border:1px solid var(--hairline);border-radius:9px;padding:0 10px;background:var(--ground);color:var(--ink);font:inherit;min-width:180px}
+input[type=range]{accent-color:var(--accent);width:180px}
+input[type=checkbox]{appearance:none;width:38px;height:22px;border-radius:11px;background:var(--side-wash);position:relative;cursor:pointer;transition:background .15s;flex:none}
+input[type=checkbox]::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
+input[type=checkbox]:checked{background:var(--accent)}
+input[type=checkbox]:checked::after{transform:translateX(16px)}
+@media (prefers-reduced-motion:reduce){input[type=checkbox],input[type=checkbox]::after{transition:none}}
+.btn{height:34px;padding:0 14px;border-radius:9px;background:var(--side-wash);font-weight:500}
+.btn:hover{background:var(--side-hover)}
+.btn.danger{color:var(--danger)}
+.list{margin:0;padding:0;list-style:none}
+.item{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:9px;min-height:48px}
+.item:hover{background:var(--side-hover)}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .t small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+.item .x{width:30px;height:30px;border-radius:8px;color:var(--muted);display:grid;place-items:center;opacity:0}
+.item:hover .x,.item:focus-within .x{opacity:1}
+.item .x:hover{color:var(--ink);background:var(--side-wash)}
+.group{padding:16px 10px 4px;color:var(--muted);font-size:12px;font-weight:600}
+.empty{color:var(--muted);padding:24px 10px}
+.search{width:100%;height:40px;font-size:15px;border-radius:11px;margin:12px 0 8px;padding:0 14px}
+kbd{font:inherit;font-size:12px;border:1px solid var(--hairline);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:var(--frame)}
+table{border-collapse:collapse;width:100%}
+td{padding:8px 4px;border-bottom:1px solid var(--hairline);vertical-align:top}
+td:first-child{width:46%;white-space:nowrap}

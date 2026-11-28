@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Keyboard Shortcuts</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="common.css"></head>
+<body><div class="page">
+<h1>Keyboard shortcuts</h1><p class="lead">The same keys as Fasty on Linux.</p>
+<table id="t"></table>
+</div>
+<script src="common.js"></script>
+<script>
+setTitle('Keyboard Shortcuts');
+const rows = [
+  ['Ctrl+L', 'Address'], ['Ctrl+K', 'Switch tab'], ['Ctrl+T', 'New tab'],
+  ['Ctrl+Shift+N', 'New private tab'], ['Ctrl+W', 'Close tab'], ['Ctrl+Shift+T', 'Reopen closed tab'],
+  ['Ctrl+[  Ctrl+]  Alt+Left  Alt+Right', 'Back, forward'], ['Ctrl+Shift+[  Ctrl+Shift+]  Ctrl+Tab', 'Previous, next tab'],
+  ['Ctrl+1 to Ctrl+9', 'Jump to tab'], ['Ctrl+Shift+S', 'Tabs on the left or across the top'],
+  ['Ctrl+S', 'Fold the sidebar away'], ['Ctrl+Shift+B', 'Bookmark this page'],
+  ['Ctrl+Alt+B', 'Bookmarks'], ['Ctrl+Shift+R', 'Reading mode'], ['Ctrl+F', 'Find'], ['Ctrl+D', 'Duplicate tab'],
+  ['Ctrl+Shift+C', 'Copy address (clean)'], ['Ctrl+Y', 'History'],
+  ['Ctrl+Shift+J', 'Downloads folder'], ['Ctrl+,', 'Settings'], ['Ctrl+R  F5', 'Reload'],
+  ['Ctrl+Alt+R  Ctrl+F5', 'Reload from origin'], ['Ctrl++  Ctrl+-  Ctrl+0', 'Zoom'], ['F11', 'Full screen'], ['F12', 'Web inspector'], ['Ctrl+P', 'Print']
+];
+const t = document.getElementById('t');
+for (const [k, d] of rows) { const tr = document.createElement('tr'); const a = document.createElement('td'); a.innerHTML = k.split('  ').map(g => g.split('+').map(p => '<kbd>' + p.replace(/</g, '&lt;') + '</kbd>').join('+')).join('&nbsp;&nbsp; '); const b = document.createElement('td'); b.textContent = d; tr.append(a, b); t.appendChild(tr); }
+</script></body></html>

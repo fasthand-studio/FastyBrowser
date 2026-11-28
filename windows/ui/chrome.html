@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Fasty</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Palette and sizes are the Linux build's (src/assets/style.css): light/dark pairs from its Design palette. */
+:root{--frame:#f4f4f4;--ground:#fff;--ink:#171717;--muted:#8c8c8c;--hairline:#e8e8e8;--side-wash:#e4e4e4;--side-hover:#e9e9e9;--side-tile:#ececec;--pin-live:#dbdbdb;--accent:#3584e4;--private:#8e6bd8}
+:root[data-theme=dark]{--frame:#131313;--ground:#1c1c1c;--ink:#ededed;--muted:#949494;--hairline:#333;--side-wash:#282828;--side-hover:#212121;--side-tile:#1d1d1d;--pin-live:#303030;--accent:#78aeed}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--frame);color:var(--ink);font:13.5px/1.3 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;-webkit-user-select:none;user-select:none;cursor:default}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ico{width:16px;height:16px}
+.hidden{display:none!important}
+
+/* shared pieces */
+.nav{display:flex;align-items:center}
+.nav-button{min-width:28px;height:28px;border-radius:7px;color:var(--muted);display:grid;place-items:center}
+.nav-button:hover:not(:disabled){color:var(--ink);background:var(--side-hover)}
+.nav-button:disabled{opacity:.35;cursor:default}
+.field{position:relative;display:flex;align-items:center;gap:2px;height:34px;border-radius:9px;background:var(--side-wash);padding:0 4px 0 8px}
+.field:focus-within{background:var(--ground);outline:1px solid var(--hairline)}
+.field .lead{color:var(--muted);margin-right:6px;flex:none}
+.field input{flex:1;min-width:0;height:100%;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13.5px;outline:0;-webkit-user-select:text;user-select:text}
+.field input::placeholder{color:var(--muted)}
+.field .fbtn{width:26px;height:26px;border-radius:7px;color:var(--muted);display:grid;place-items:center;flex:none}
+.field .fbtn:hover{color:var(--ink);background:alpha(0)}
+.field .fbtn:hover{background:rgba(127,127,127,.16)}
+.field .fbtn.on{color:var(--accent)}
+.ficon{width:16px;height:16px;border-radius:4px;flex:none;object-fit:contain}
+.letter{width:16px;height:16px;border-radius:4px;display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--muted);flex:none}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--hairline);border-top-color:var(--muted);animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+
+/* tab row (left) and chip (top) */
+.tab{position:relative;display:flex;align-items:center;gap:8px;color:var(--ink);cursor:default}
+.tab .title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab.live .title{font-weight:500}
+.tab.asleep .title{opacity:.82}
+.tab.private .title{font-style:italic}
+.tab .x{width:22px;height:22px;border-radius:6px;color:var(--muted);display:grid;place-items:center;opacity:0;flex:none}
+.tab:hover .x,.tab.live .x{opacity:1}
+.tab .x:hover{color:var(--ink);background:rgba(127,127,127,.16)}
+.tab.dropbefore::before{content:"";position:absolute;left:4px;right:4px;top:-1px;height:2px;border-radius:1px;background:var(--muted)}
+
+/* ===== left: sidebar ===== */
+body.side{display:flex}
+body.side .top{display:none}
+.side{width:100%;height:100%;display:flex;flex-direction:column;padding:0 0 6px 8px;position:relative}
+.side-head{display:flex;align-items:center;min-height:40px;padding:4px 0 2px 0}
+.side-field{margin:4px 0 10px 0;position:relative}
+.pins{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:6px;margin:0 0 10px 0}
+.pins:empty{display:none}
+.pin{height:40px;border-radius:9px;background:var(--side-tile);display:grid;place-items:center;position:relative}
+.pin:hover{background:var(--side-wash)}
+.pin.live{background:var(--pin-live)}
+.pin .spin{position:absolute;right:5px;top:5px;width:9px;height:9px;border-width:1.5px}
+.rows{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;margin-right:2px}
+.row{min-height:34px;padding:0 4px 0 10px;border-radius:9px}
+.row:hover{background:var(--side-hover)}
+.row.live{background:var(--side-wash)}
+.new-tab{display:flex;align-items:center;gap:8px;min-height:32px;padding:0 10px;margin-top:4px;border-radius:9px;color:var(--muted);flex:none}
+.new-tab:hover{color:var(--ink);background:var(--side-hover)}
+.side-foot{display:flex;align-items:center;gap:4px;padding-top:6px;flex:none}
+.side-foot button{height:30px;min-width:30px;border-radius:8px;color:var(--muted);display:grid;place-items:center;padding:0 6px}
+.side-foot button:hover{color:var(--ink);background:var(--side-hover)}
+.side-foot .shield{margin-left:auto;font-size:12px;display:flex;align-items:center;gap:5px;padding:0 8px;cursor:default}
+.grip{position:absolute;top:0;bottom:0;right:0;width:6px;cursor:col-resize;background:transparent}
+
+/* ===== top: tabs across the top ===== */
+body.topmode .side{display:none}
+.top{display:none;flex-direction:column;width:100%}
+body.topmode .top{display:flex}
+.top-bar{display:flex;align-items:center;gap:4px;min-height:42px;padding:4px 8px 2px 8px}
+.chips{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:2px 0}
+.chip{min-height:32px;padding:0 4px 0 10px;border-radius:9px;font-size:13px;flex:0 1 190px;min-width:60px}
+.chip:hover{background:var(--side-hover)}
+.chip.live{background:var(--side-wash)}
+.chip.pinchip{flex:none;padding:0 10px}
+.top-menu{display:flex;gap:2px;flex:none}
+.top-menu button{width:30px;height:30px;border-radius:8px;color:var(--muted);display:grid;place-items:center}
+.top-menu button:hover{color:var(--ink);background:var(--side-hover)}
+.top-field{margin:0 8px 8px 8px;position:relative}
+.shield-t{font-size:12px;color:var(--muted);padding:0 6px;align-self:center;white-space:nowrap}
+
+/* popups: suggestions and menus */
+.pop{position:absolute;z-index:20;background:var(--ground);border-radius:11px;padding:4px;border:1px solid var(--hairline);max-height:70vh;overflow:auto}
+#suggest{left:0;right:0;top:calc(100% + 4px)}
+.sug{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;min-height:44px}
+.sug.sel{background:var(--side-wash)}
+.sug .s-ic{color:var(--muted);flex:none;width:16px;display:grid;place-items:center}
+.sug .s-t{min-width:0;flex:1}
+.sug .s-t b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sug .s-t small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.sug .s-k{font-size:11px;color:var(--muted);flex:none}
+.menu{padding:4px;min-width:230px}
+.menu .mi{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;padding:6px 12px;border-radius:6px;text-align:left}
+.menu .mi:hover,.menu .mi:focus-visible{background:var(--side-wash)}
+.menu .mi kbd{font:inherit;font-size:11.5px;color:var(--muted)}
+.menu hr{border:0;border-top:1px solid var(--hairline);margin:4px 2px}
+#menu{left:8px;bottom:42px}
+body.topmode #menu{right:8px;top:44px;bottom:auto;left:auto}
+#ctx{min-width:190px}
+.cover{position:fixed;inset:0;z-index:15}
+#toast{position:fixed;left:12px;right:12px;bottom:12px;z-index:30;background:#171717;color:#fff;border-radius:10px;padding:8px 12px;font-size:12.5px;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;pointer-events:none}
+#toast.on{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style></head>
+<body class="side">
+
+<!-- the same address field is moved between the two layouts -->
+<form class="field" id="field" autocomplete="off" role="search">
+  <span class="lead" id="lead"><svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg></span>
+  <input id="addr" type="text" spellcheck="false" placeholder="Search or enter an address" aria-label="Address" aria-autocomplete="list" aria-controls="suggest">
+  <button type="button" class="fbtn" id="star" title="Bookmark this page (Ctrl+Shift+B)" aria-label="Bookmark this page"><svg class="ico" viewBox="0 0 16 16"><path d="m8 1.8 1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/></svg></button>
+  <button type="button" class="fbtn" id="mic" title="Voice search" aria-label="Voice search"><svg class="ico" viewBox="0 0 16 16"><rect x="5.6" y="1.4" width="4.8" height="8.4" rx="2.4"/><path d="M3 7.4a5 5 0 0 0 10 0M8 12.4V15"/></svg></button>
+</form>
+<div class="pop hidden" id="suggest" role="listbox" aria-label="Suggestions"></div>
+
+<!-- left layout -->
+<aside class="side" id="side">
+  <div class="side-head"><div class="nav" id="nav-l"></div></div>
+  <div class="side-field" id="field-l"></div>
+  <div class="pins" id="pins"></div>
+  <div class="rows" id="rows" role="tablist" aria-label="Tabs"></div>
+  <button class="new-tab" id="newtab-l"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>New Tab</button>
+  <div class="side-foot"><button id="menu-l" title="Menu" aria-label="Menu" aria-haspopup="true"><svg class="ico" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg></button><span class="shield" id="shield-l"></span></div>
+  <div class="grip" id="grip" title="Drag to resize"></div>
+</aside>
+
+<!-- top layout -->
+<header class="top" id="top">
+  <div class="top-bar">
+    <div class="nav" id="nav-t"></div>
+    <div class="chips" id="chips" role="tablist" aria-label="Tabs"></div>
+    <button class="nav-button" id="newtab-t" title="New tab (Ctrl+T)" aria-label="New tab"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg></button>
+    <span class="shield-t" id="shield-t"></span>
+    <div class="top-menu"><button id="menu-t" title="Menu" aria-label="Menu" aria-haspopup="true"><svg class="ico" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg></button></div>
+  </div>
+  <div class="top-field" id="field-t"></div>
+</header>
+
+<div class="pop menu hidden" id="menu" role="menu"></div>
+<div class="pop menu hidden" id="ctx" role="menu" style="position:fixed"></div>
+<div class="cover hidden" id="cover"></div>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const post = o => { try { window.chrome.webview.postMessage(JSON.stringify(o)); } catch (e) {} };
+const ICON = {
+  back: '<svg class="ico" viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg>',
+  fwd: '<svg class="ico" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5"/></svg>',
+  reload: '<svg class="ico" viewBox="0 0 16 16"><path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.7M13 2.2v3h-3"/></svg>',
+  stop: '<svg class="ico" viewBox="0 0 16 16"><path d="m3.5 3.5 9 9m0-9-9 9"/></svg>',
+  search: '<svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg>',
+  globe: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12"/></svg>',
+  star: '<svg class="ico" viewBox="0 0 16 16"><path d="m8 1.8 1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/></svg>',
+  clock: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.6V8l2.4 1.6"/></svg>',
+  tab: '<svg class="ico" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="2"/><path d="M2 6.5h12"/></svg>',
+  lock: '<svg class="ico" viewBox="0 0 16 16"><rect x="3.4" y="7" width="9.2" height="6.4" rx="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"/></svg>',
+  x: '<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="m3.5 3.5 9 9m0-9-9 9"/></svg>'
+};
+let S = { tabs: [], active: 0, url: '', title: '', settings: { tabsSide: 'left', sidebarFolded: false, sidebarWidth: 248 }, blocked: 0, shieldOn: true, theme: 'light', bookmarked: false, canBack: false, canForward: false, loadingActive: false, internal: false };
+let sugs = [], sel = -1, switchMode = false, ctxTab = 0, overlayH = 0;
+
+function navButtons(host) {
+  host.textContent = '';
+  const mk = (id, svg, title, a, dis) => { const b = document.createElement('button'); b.className = 'nav-button'; b.innerHTML = svg; b.title = title; b.setAttribute('aria-label', title.replace(/ \(.*/, '')); b.disabled = !!dis; b.onclick = () => post({ a }); b.oncontextmenu = e => { if (a === 'reload') { e.preventDefault(); post({ a: 'reloadhard' }); } }; host.appendChild(b); return b; };
+  mk('b', ICON.back, 'Back (Alt+Left)', 'back', !S.canBack);
+  mk('f', ICON.fwd, 'Forward (Alt+Right)', 'fwd', !S.canForward);
+  mk('r', S.loadingActive ? ICON.stop : ICON.reload, S.loadingActive ? 'Stop' : 'Reload (Ctrl+R)', S.loadingActive ? 'stop' : 'reload');
+}
+function favicon(t, size) {
+  if (t.loading && !t.favicon) { const s = document.createElement('span'); s.className = 'spin'; return s; }
+  if (t.favicon) { const i = document.createElement('img'); i.className = 'ficon'; i.src = t.favicon; i.alt = ''; i.onerror = () => i.replaceWith(letter(t)); return i; }
+  return letter(t);
+}
+function letter(t) {
+  const l = document.createElement('span'); l.className = 'letter';
+  let c = ''; try { if (t.url && /^https?:/.test(t.url)) c = new URL(t.url).hostname.replace(/^www\./, '')[0]; } catch (e) {}
+  if (!c && t.title) c = t.title[0]; l.textContent = (c || '·').toUpperCase(); return l;
+}
+function titleOf(t) { return t.title || (t.url ? t.url.replace(/^https?:\/\/(www\.)?/, '') : 'New Tab'); }
+function tabEl(t, cls) {
+  const d = document.createElement('div');
+  d.className = 'tab ' + cls + (t.id === S.active ? ' live' : '') + (t.asleep ? ' asleep' : '') + (t.private ? ' private' : '');
+  d.dataset.id = t.id; d.setAttribute('role', 'tab'); d.setAttribute('aria-selected', t.id === S.active); d.draggable = true; d.title = titleOf(t);
+  d.appendChild(favicon(t, 16));
+  const s = document.createElement('span'); s.className = 'title'; s.textContent = titleOf(t); d.appendChild(s);
+  const x = document.createElement('button'); x.className = 'x'; x.innerHTML = ICON.x; x.title = 'Close tab'; x.setAttribute('aria-label', 'Close tab');
+  x.onclick = e => { e.stopPropagation(); post({ a: 'close', id: t.id }); }; d.appendChild(x);
+  d.onclick = () => post({ a: 'switch', id: t.id });
+  d.onauxclick = e => { if (e.button === 1) post({ a: 'close', id: t.id }); };
+  d.oncontextmenu = e => { e.preventDefault(); tabMenu(t, e.clientX, e.clientY); };
+  d.ondragstart = e => { e.dataTransfer.setData('text/plain', String(t.id)); e.dataTransfer.effectAllowed = 'move'; };
+  d.ondragover = e => { e.preventDefault(); d.classList.add('dropbefore'); };
+  d.ondragleave = () => d.classList.remove('dropbefore');
+  d.ondrop = e => { e.preventDefault(); d.classList.remove('dropbefore'); const id = +e.dataTransfer.getData('text/plain'); if (id && id !== t.id) post({ a: 'move', id, before: t.id }); };
+  return d;
+}
+function renderTabs() {
+  const left = S.settings.tabsSide !== 'top';
+  if (left) {
+    const pins = $('pins'), rows = $('rows'); pins.textContent = ''; rows.textContent = '';
+    for (const t of S.tabs) {
+      if (t.pinned) {
+        const d = document.createElement('div'); d.className = 'pin' + (t.id === S.active ? ' live' : ''); d.title = titleOf(t); d.dataset.id = t.id; d.draggable = true;
+        d.appendChild(favicon(t, 18)); if (t.loading && t.favicon) { const sp = document.createElement('span'); sp.className = 'spin'; d.appendChild(sp); }
+        d.onclick = () => post({ a: 'switch', id: t.id }); d.oncontextmenu = e => { e.preventDefault(); tabMenu(t, e.clientX, e.clientY); };
+        d.onauxclick = e => { if (e.button === 1) post({ a: 'close', id: t.id }); };
+        d.ondragstart = e => { e.dataTransfer.setData('text/plain', String(t.id)); };
+        pins.appendChild(d);
+      } else rows.appendChild(tabEl(t, 'row'));
+    }
+  } else {
+    const chips = $('chips'); chips.textContent = '';
+    for (const t of S.tabs) { const c = tabEl(t, 'chip' + (t.pinned ? ' pinchip' : '')); if (t.pinned) { c.querySelector('.title').remove(); c.querySelector('.x').remove(); } chips.appendChild(c); }
+    const live = chips.querySelector('.live'); if (live) live.scrollIntoView({ inline: 'nearest' });
+  }
+}
+function render() {
+  document.documentElement.dataset.theme = S.theme;
+  const top = S.settings.tabsSide === 'top';
+  document.body.className = top ? 'topmode' : 'side';
+  (top ? $('field-t') : $('field-l')).appendChild($('field'));
+  navButtons($(top ? 'nav-t' : 'nav-l'));
+  renderTabs();
+  const showing = S.internal ? '' : S.url;
+  if (document.activeElement !== $('addr')) $('addr').value = showing;
+  $('lead').innerHTML = S.url && /^https:/.test(S.url) ? ICON.lock : (S.url && /^http:/.test(S.url) ? ICON.globe : ICON.search);
+  $('star').classList.toggle('on', S.bookmarked); $('star').classList.toggle('hidden', S.internal || !S.url);
+  const sh = S.shieldOn ? 'Shield ' + S.blocked : 'Shield off';
+  $('shield-l').textContent = sh; $('shield-t').textContent = sh;
+  $('shield-l').title = $('shield-t').title = 'Requests blocked by Shield this session';
+}
+window.fasty = {
+  update(s) { S = Object.assign(S, s); render(); },
+  suggestions(list, q) { if ($('addr').value.trim() !== q) return; sugs = list; sel = list.length ? 0 : -1; drawSuggest(); },
+  focusAddr(sel2) { const a = $('addr'); a.focus(); if (sel2) a.select(); },
+  setMode(m) { switchMode = m === 'switch'; },
+  toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('on'), 2600); }
+};
+function sugIcon(k) { return k === 'search' ? ICON.search : k === 'bookmark' ? ICON.star : k === 'history' ? ICON.clock : k === 'tab' ? ICON.tab : ICON.globe; }
+function drawSuggest() {
+  const box = $('suggest'); box.textContent = '';
+  if (!sugs.length || document.activeElement !== $('addr')) { box.classList.add('hidden'); setOverlay(0); return; }
+  sugs.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'sug' + (i === sel ? ' sel' : ''); d.setAttribute('role', 'option');
+    d.innerHTML = '<span class="s-ic">' + sugIcon(s.kind) + '</span><span class="s-t"><b></b><small></small></span><span class="s-k"></span>';
+    d.querySelector('b').textContent = s.kind === 'search' ? s.title : (s.title || s.url);
+    d.querySelector('small').textContent = s.kind === 'search' ? 'Search' : s.url.replace(/^https?:\/\//, '');
+    d.querySelector('.s-k').textContent = s.kind === 'tab' ? 'Switch to tab' : '';
+    d.onmousedown = e => { e.preventDefault(); choose(i); };
+    box.appendChild(d);
+  });
+  box.classList.remove('hidden');
+  if (S.settings.tabsSide === 'top') requestAnimationFrame(() => setOverlay(Math.min(window.innerHeight < 100 ? 460 : window.innerHeight, 90 + box.scrollHeight + 16)));
+}
+function choose(i) {
+  const s = sugs[i]; if (!s) return;
+  closeSuggest();
+  if (s.kind === 'tab') post({ a: 'switchurl', url: s.url }); else post({ a: 'nav', v: s.url });
+  $('addr').blur();
+}
+function closeSuggest() { sugs = []; sel = -1; $('suggest').classList.add('hidden'); setOverlay(0); }
+function setOverlay(h) { if (h !== overlayH) { overlayH = h; post({ a: 'overlay', h }); } }
+let sugTimer = 0;
+$('addr').addEventListener('input', () => {
+  clearTimeout(sugTimer); const q = $('addr').value;
+  if (!q.trim()) { closeSuggest(); return; }
+  sugTimer = setTimeout(() => post({ a: 'suggest', q, mode: switchMode ? 'switch' : '' }), 60);
+});
+$('addr').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' && sugs.length) { e.preventDefault(); sel = (sel + 1) % sugs.length; drawSuggest(); }
+  else if (e.key === 'ArrowUp' && sugs.length) { e.preventDefault(); sel = (sel - 1 + sugs.length) % sugs.length; drawSuggest(); }
+  else if (e.key === 'Escape') { closeSuggest(); $('addr').value = S.internal ? '' : S.url; $('addr').blur(); post({ a: 'focuspage' }); }
+});
+$('field').addEventListener('submit', e => { e.preventDefault(); if (sel >= 0 && sugs[sel]) choose(sel); else { const v = $('addr').value; closeSuggest(); post({ a: 'nav', v }); $('addr').blur(); } });
+$('addr').addEventListener('focus', () => { $('addr').select(); switchMode = switchMode; });
+$('addr').addEventListener('blur', () => { setTimeout(() => { if (document.activeElement !== $('addr')) { closeSuggest(); switchMode = false; $('addr').value = S.internal ? '' : S.url; } }, 120); });
+$('star').onclick = () => post({ a: 'bookmark' });
+$('mic').onclick = () => post({ a: 'voice' });
+$('newtab-l').onclick = $('newtab-t').onclick = () => post({ a: 'newtab' });
+
+/* menu */
+const MENU = [
+  [['New Tab', 'newtab', 'Ctrl+T'], ['New Private Tab', 'privatetab', 'Ctrl+Shift+N'], ['Reopen Closed Tab', 'reopen', 'Ctrl+Shift+T']],
+  [['History', 'history', 'Ctrl+Y'], ['Bookmarks', 'bookmarks', 'Ctrl+Alt+B'], ['Downloads', 'downloads', 'Ctrl+Shift+J']],
+  [['Voice Search', 'voice', ''], ['Reading Mode', 'reader', 'Ctrl+Shift+R'], ['Find on Page…', 'find', 'Ctrl+F'], ['Print…', 'print', 'Ctrl+P'], ['Web Inspector', 'inspector', 'F12']],
+  [['Tabs Across the Top / Down the Left', 'tabsside', 'Ctrl+Shift+S'], ['Fold Sidebar Away', 'fold', 'Ctrl+S'], ['Keyboard Shortcuts', 'shortcuts', ''], ['Settings', 'settings', 'Ctrl+,']]
+];
+function openMenu() {
+  const m = $('menu'); m.textContent = '';
+  MENU.forEach((sec, si) => { if (si) m.appendChild(document.createElement('hr')); sec.forEach(([label, act, key]) => {
+    const b = document.createElement('button'); b.className = 'mi'; b.setAttribute('role', 'menuitem'); b.innerHTML = '<span></span><kbd></kbd>'; b.firstChild.textContent = label; b.lastChild.textContent = key;
+    b.onclick = () => { closePops(); post({ a: act }); }; m.appendChild(b); }); });
+  m.classList.remove('hidden'); $('cover').classList.remove('hidden');
+  if (S.settings.tabsSide === 'top') setOverlay(Math.min(520, m.scrollHeight + 56));
+  m.querySelector('.mi').focus();
+}
+function tabMenu(t, x, y) {
+  const m = $('ctx'); m.textContent = '';
+  const items = [[t.pinned ? 'Unpin Tab' : 'Pin Tab', 'pin'], ['Duplicate Tab', 'duplicate'], ['Reload', 'reloadtab'], null, ['Close Tab', 'close'], ['Close Other Tabs', 'closeothers']];
+  for (const it of items) { if (!it) { m.appendChild(document.createElement('hr')); continue; }
+    const b = document.createElement('button'); b.className = 'mi'; b.setAttribute('role', 'menuitem'); b.textContent = it[0]; b.onclick = () => { closePops(); post({ a: it[1], id: t.id }); }; m.appendChild(b); }
+  m.classList.remove('hidden'); $('cover').classList.remove('hidden');
+  m.style.left = Math.min(x, innerWidth - 200) + 'px'; m.style.top = Math.min(y, Math.max(0, innerHeight - 190)) + 'px'; m.style.right = m.style.bottom = 'auto';
+  if (S.settings.tabsSide === 'top') setOverlay(Math.max(overlayH, y + 200));
+}
+function closePops() { $('menu').classList.add('hidden'); $('ctx').classList.add('hidden'); $('cover').classList.add('hidden'); setOverlay(0); }
+$('menu-l').onclick = $('menu-t').onclick = e => { e.stopPropagation(); openMenu(); };
+$('cover').onclick = closePops;
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('cover').classList.contains('hidden')) closePops(); });
+
+/* sidebar width */
+(() => {
+  const g = $('grip'); let drag = false;
+  g.addEventListener('pointerdown', e => { drag = true; g.setPointerCapture(e.pointerId); });
+  g.addEventListener('pointermove', e => { if (drag) post({ a: 'sidew', w: Math.round(e.clientX + 3), live: true }); });
+  g.addEventListener('pointerup', e => { drag = false; post({ a: 'sidew', w: Math.round(e.clientX + 3), live: false }); });
+})();
+
+/* keys while the sidebar has focus: send the combination to the app, which owns the shortcut table */
+const FWD = new Set(['ctrl+t','ctrl+shift+t','ctrl+shift+n','ctrl+w','ctrl+l','ctrl+k','ctrl+d','ctrl+y','ctrl+alt+b','ctrl+shift+b','ctrl+shift+j','ctrl+,','ctrl+r','f5','ctrl+shift+r','ctrl+shift+s','ctrl+s','ctrl+tab','ctrl+shift+tab','alt+arrowleft','alt+arrowright','ctrl+bracketleft','ctrl+bracketright','ctrl+shift+bracketleft','ctrl+shift+bracketright','f11','ctrl+shift+c','ctrl+alt+r','ctrl+f5','ctrl+1','ctrl+2','ctrl+3','ctrl+4','ctrl+5','ctrl+6','ctrl+7','ctrl+8','ctrl+9']);
+addEventListener('keydown', e => {
+  const k = /^Bracket/.test(e.code) ? e.code.toLowerCase() : e.key.toLowerCase();
+  const c = (e.ctrlKey ? 'ctrl+' : '') + (e.altKey ? 'alt+' : '') + (e.shiftKey ? 'shift+' : '') + k;
+  if (FWD.has(c)) { e.preventDefault(); post({ a: 'key', k: c }); }
+});render();
+post({ a: 'ready' });
+</script></body></html>

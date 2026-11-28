@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Settings</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="common.css"></head>
+<body><div class="page">
+<h1>Settings</h1><p class="lead">Saved on this computer only. There is no account and no sync.</p>
+
+<h2>General</h2>
+<div class="card">
+  <label class="row"><span class="grow">Search engine<small>Used for anything typed that isn't an address</small></span>
+    <select id="searchEngine"><option value="duckduckgo">DuckDuckGo</option><option value="brave">Brave Search</option><option value="startpage">Startpage</option><option value="google">Google</option><option value="bing">Bing</option></select></label>
+  <label class="row"><span class="grow">Appearance<small>Follow Windows, or choose</small></span>
+    <select id="appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+  <label class="row"><span class="grow">Tabs<small>Down the left, or across the top</small></span>
+    <select id="tabsSide"><option value="left">Down the left</option><option value="top">Across the top</option></select></label>
+  <label class="row"><span class="grow">Sidebar width<small>Or drag the edge of the sidebar</small></span><input type="range" id="sidebarWidth" min="180" max="420" step="4"></label>
+  <label class="row"><span class="grow">Restore tabs on start<small>Reopen the tabs you had open</small></span><input type="checkbox" id="restoreSession"></label>
+</div>
+
+<h2>Privacy</h2>
+<div class="card">
+  <label class="row"><span class="grow">Shield<small>Blocks requests to known ad and tracker hosts</small></span><input type="checkbox" id="shield"></label>
+  <label class="row"><span class="grow">Extended list<small>Also use the StevenBlack hosts list, downloaded once a week from GitHub. Applies after a restart</small></span><input type="checkbox" id="extendedShield"></label>
+  <label class="row"><span class="grow">Clean links<small>Remove tracking parameters (utm_*, fbclid, gclid ...) from addresses you open or copy</small></span><input type="checkbox" id="cleanLinks"></label>
+</div>
+
+<h2>Memory</h2>
+<div class="card">
+  <label class="row"><span class="grow">Sleep unused tabs after (minutes)<small>0 turns it off. A sleeping tab frees its page and reloads when you return</small></span><input type="number" id="sleepMinutes" min="0" max="1440"></label>
+</div>
+
+<h2>Data</h2>
+<div class="card">
+  <div class="row"><span class="grow">History<small id="hcount"></small></span><button class="btn danger" id="clearHistory">Clear history</button></div>
+  <div class="row"><span class="grow">Downloads<small>Files are saved to your Downloads folder</small></span><button class="btn" id="openDownloads">Open folder</button></div>
+</div>
+
+<h2>About</h2>
+<div class="card"><div class="row"><span class="grow">Fasty for Windows <span id="ver"></span><small>Pages are drawn by Microsoft Edge WebView2. Voice search uses the speech recognizer that ships with Windows, on this PC.</small></span>
+  <a href="https://github.com/fasthand-studio/FastyBrowser" target="_blank" rel="noreferrer">GitHub</a></div></div>
+</div>
+<script src="common.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+setTitle('Settings');
+const keys = ['searchEngine','appearance','tabsSide','sidebarWidth','restoreSession','shield','extendedShield','cleanLinks','sleepMinutes'];
+function fill(s) { for (const k of keys) { const el = $(k); if (el.type === 'checkbox') el.checked = !!s[k]; else el.value = s[k]; } }
+rpc('settings.get').then(fill);
+rpc('state').then(s => { $('ver').textContent = s.version; });
+rpc('history.list', {}).then(h => { $('hcount').textContent = (h && h.length ? h.length + ' pages' : 'Nothing saved'); });
+for (const k of keys) $(k).addEventListener('change', async () => {
+  const el = $(k); let v = el.type === 'checkbox' ? el.checked : el.value;
+  if (el.type === 'number' || el.type === 'range') v = parseInt(v || '0', 10);
+  const cur = await rpc('settings.get'); cur[k] = v; fill(await rpc('settings.set', cur));
+});
+$('sidebarWidth').addEventListener('input', async () => { const cur = await rpc('settings.get'); cur.sidebarWidth = parseInt($('sidebarWidth').value, 10); await rpc('settings.set', cur); });
+$('clearHistory').onclick = async () => { if (confirm('Clear all browsing history?')) { await rpc('history.clear'); $('hcount').textContent = 'Nothing saved'; } };
+$('openDownloads').onclick = () => rpc('downloads');
+</script></body></html>

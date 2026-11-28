@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>New Tab</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="common.css">
+<style>
+body{background:var(--ground);display:grid;grid-template-rows:minmax(48px,18vh) auto 1fr;justify-items:center}
+.brand{grid-row:2;text-align:center;margin-bottom:22px}
+.brand h1{font-size:28px;margin:0}
+.brand p{margin:6px 0 0;color:var(--muted)}
+.priv{color:var(--private)}
+main{grid-row:3;width:min(640px,92vw);align-self:start}
+.spot{background:var(--ground);border-radius:14px;padding:6px;border:1px solid var(--hairline)}
+.spot:focus-within{border-color:var(--muted)}
+.entry{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 6px 0 10px}
+.entry .lead{color:var(--muted);flex:none}
+.private .entry .lead{color:var(--private)}
+.entry input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:1.35em;outline:0;height:44px}
+.entry input::placeholder{color:var(--muted)}
+.entry button{width:36px;height:36px;border-radius:9px;color:var(--muted);display:grid;place-items:center;flex:none}
+.entry button:hover{background:var(--side-wash);color:var(--ink)}
+.sep{height:1px;background:var(--hairline);margin:6px 4px}
+.sugs{list-style:none;margin:0;padding:0}
+.sug{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 10px;border-radius:8px;cursor:default}
+.sug.sel{background:var(--side-wash)}
+.sug .ic{color:var(--muted);flex:none;width:18px}
+.sug .t{min-width:0;flex:1}
+.sug .t b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sug .t small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sug .k{font-size:11.5px;color:var(--muted)}
+.hint{text-align:center;color:var(--muted);margin-top:18px;font-size:13px}
+</style></head>
+<body>
+<div class="brand"><h1 id="name">Fasty</h1><p id="sub">Type an address or a few words. Ctrl+L to the field, Ctrl+K for your tabs.</p></div>
+<main>
+  <div class="spot" id="spot">
+    <form class="entry" id="form" autocomplete="off" role="search">
+      <span class="lead" id="lead"></span>
+      <input id="q" type="text" autofocus spellcheck="false" placeholder="Search or enter an address" aria-label="Search or enter an address" aria-controls="sugs" aria-autocomplete="list">
+      <button type="button" id="mic" title="Voice search" aria-label="Voice search"></button>
+    </form>
+    <div id="sepwrap" hidden><div class="sep"></div><ul class="sugs" id="sugs" role="listbox"></ul></div>
+  </div>
+  <p class="hint" id="hint"></p>
+</main>
+<script src="common.js"></script>
+<script src="voice.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const dark = document.documentElement.dataset.theme === 'dark';
+let isPrivate = params.get('private') === '1';
+$('lead').innerHTML = icon.search; $('mic').innerHTML = icon.mic;
+setTitle(isPrivate ? 'New Private Tab' : 'New Tab');
+rpc('state').then(s => { if (s && s.private) isPrivate = true; if (isPrivate) { document.body.classList.add('private'); $('spot').classList.add('private'); $('name').classList.add('priv'); $('name').textContent = 'Private tab'; $('sub').textContent = 'Cookies and history for this tab are deleted when you close it.'; setTitle('New Private Tab'); } });
+let sugs = [], sel = -1, timer = 0;
+function draw() {
+  const ul = $('sugs'); ul.textContent = '';
+  $('sepwrap').hidden = !sugs.length;
+  sugs.forEach((s, i) => {
+    const li = document.createElement('li'); li.className = 'sug' + (i === sel ? ' sel' : ''); li.setAttribute('role', 'option');
+    const ic = s.kind === 'search' ? icon.search : s.kind === 'bookmark' ? icon.star : s.kind === 'history' ? icon.clock : s.kind === 'tab' ? icon.tab : icon.globe;
+    li.innerHTML = '<span class="ic">' + ic + '</span><span class="t"><b></b><small></small></span><span class="k"></span>';
+    li.querySelector('b').textContent = s.kind === 'search' ? s.title : (s.title || s.url);
+    li.querySelector('small').textContent = s.kind === 'search' ? 'Search' : s.url.replace(/^https?:\/\//, '');
+    li.querySelector('.k').textContent = s.kind === 'tab' ? 'Switch to tab' : '';
+    li.onmousedown = e => { e.preventDefault(); go(s.url); };
+    ul.appendChild(li);
+  });
+}
+function go(v) { if (v && v.trim()) rpc('nav', { v }); }
+$('q').addEventListener('input', () => {
+  clearTimeout(timer); const q = $('q').value;
+  if (!q.trim()) { sugs = []; sel = -1; draw(); return; }
+  timer = setTimeout(async () => { const r = await rpc('suggest', { q }); if ($('q').value === q) { sugs = r || []; sel = sugs.length ? 0 : -1; draw(); } }, 40);
+});
+$('q').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' && sugs.length) { e.preventDefault(); sel = (sel + 1) % sugs.length; draw(); }
+  else if (e.key === 'ArrowUp' && sugs.length) { e.preventDefault(); sel = (sel - 1 + sugs.length) % sugs.length; draw(); }
+});
+$('form').addEventListener('submit', e => { e.preventDefault(); go(sel >= 0 && sugs[sel] ? sugs[sel].url : $('q').value); });
+function openVoice() {
+  FastyVoice.open({ auto: true, dark, onSubmit: t => { FastyVoice.close(); go(t); }, onCancel: () => { FastyVoice.close(); $('q').focus(); } });
+}
+$('mic').onclick = openVoice;
+if (params.get('voice') === '1') openVoice();
+if (params.get('selftest') === '1') { // lets the app's self-test see what the voice screen shows; never used otherwise
+  setTimeout(() => { if (document.getElementById('voice-overlay')) fastyPost({ a: 'log', v: 'flag:voice-ui=open' });
+    const log = document.querySelector('#voice-overlay [role=log]'); if (log) new MutationObserver(() => fastyPost({ a: 'log', v: 'flag:voice-text=' + log.textContent })).observe(log, { childList: true, subtree: true, characterData: true }); }, 600);
+}
+</script></body></html>

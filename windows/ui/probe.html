@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>probe</title>
+<body style="font:14px sans-serif;padding:20px"><pre id="o">probe</pre>
+<script>
+const out=[];function log(s){out.push(s);document.getElementById('o').textContent=out.join('\n');try{window.chrome.webview.postMessage(JSON.stringify({a:'log',v:s}))}catch(e){}}
+log('secure='+isSecureContext+' origin='+location.origin);
+log('SpeechRecognition='+(!!(window.SpeechRecognition||window.webkitSpeechRecognition))+' mediaDevices='+!!navigator.mediaDevices);
+(async()=>{
+ try{ const s=await navigator.mediaDevices.getUserMedia({audio:true}); log('getUserMedia OK tracks='+s.getAudioTracks().length+' label='+s.getAudioTracks()[0].label); s.getTracks().forEach(t=>t.stop()); }catch(e){ log('getUserMedia FAIL '+e.name+': '+e.message) }
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){log('no SR');return}
+ const r=new SR(); r.lang='en-US'; r.interimResults=true; r.continuous=false;
+ for(const ev of ['start','audiostart','soundstart','speechstart','speechend','soundend','audioend','end','nomatch']) r.addEventListener(ev,()=>log('SR event: '+ev));
+ r.onerror=e=>log('SR error: '+e.error+' '+(e.message||''));
+ r.onresult=e=>log('SR result: '+e.results[0][0].transcript);
+ try{ r.start(); log('SR.start() called') }catch(e){ log('SR.start threw '+e.message) }
+ setTimeout(()=>{ try{r.stop()}catch(e){} log('done (8s)') },8000);
+})();
+</script>
