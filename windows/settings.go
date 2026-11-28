@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Settings are the user's choices, stored as JSON under %AppData%\FastyBrowser.
@@ -16,11 +17,16 @@ type Settings struct {
 	SleepMinutes   int    `json:"sleepMinutes"`
 	RestoreSession bool   `json:"restoreSession"`
 	// Same choices as the Linux build.
-	Appearance    string `json:"appearance"` // system | light | dark
-	TabsSide      string `json:"tabsSide"`   // left | top
-	SidebarFolded bool   `json:"sidebarFolded"`
-	SidebarWidth  int    `json:"sidebarWidth"`
-	CleanLinks    bool   `json:"cleanLinks"`
+	Appearance    string   `json:"appearance"` // system | light | dark
+	TabsSide      string   `json:"tabsSide"`   // left | top
+	SidebarFolded bool     `json:"sidebarFolded"`
+	SidebarWidth  int      `json:"sidebarWidth"`
+	CleanLinks    bool     `json:"cleanLinks"`
+	CustomEngine  string   `json:"customEngine"`  // search address with %s, used when SearchEngine is "custom"
+	PageZoom      int      `json:"pageZoom"`      // percent, 50 to 300
+	SmoothScroll  bool     `json:"smoothScroll"`  // takes effect next launch
+	HardwareAccel bool     `json:"hardwareAccel"` // takes effect next launch
+	ShieldPaused  []string `json:"shieldPaused"`  // sites where Shield is off
 }
 
 func DefaultSettings() Settings {
@@ -35,13 +41,32 @@ func DefaultSettings() Settings {
 		TabsSide:       "left",
 		SidebarWidth:   248, // same as Linux
 		CleanLinks:     true,
+		PageZoom:       100,
+		SmoothScroll:   true,
+		HardwareAccel:  true,
+		ShieldPaused:   []string{},
 	}
 }
 
 // Normalize clamps values from disk or from the settings page to something safe.
 func (s Settings) Normalize() Settings {
-	if _, ok := searchEngines[s.SearchEngine]; !ok {
+	if _, ok := searchEngines[s.SearchEngine]; !ok && s.SearchEngine != "custom" {
 		s.SearchEngine = "duckduckgo"
+	}
+	if s.SearchEngine == "custom" && !strings.Contains(s.CustomEngine, "%s") {
+		s.SearchEngine = "duckduckgo"
+	}
+	if s.PageZoom == 0 {
+		s.PageZoom = 100
+	}
+	if s.PageZoom < 50 {
+		s.PageZoom = 50
+	}
+	if s.PageZoom > 300 {
+		s.PageZoom = 300
+	}
+	if s.ShieldPaused == nil {
+		s.ShieldPaused = []string{}
 	}
 	switch s.Appearance {
 	case "light", "dark", "system":
@@ -75,7 +100,7 @@ func (s Settings) Normalize() Settings {
 }
 
 func LoadSettings(dir string) Settings {
-	s := DefaultSettings()
+	s := DefaultSettings() // fields missing from an older file keep these defaults
 	b, err := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if err != nil {
 		return s

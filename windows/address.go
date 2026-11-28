@@ -8,12 +8,24 @@ import (
 
 // searchEngines maps a settings key to a search URL; %s is the escaped query.
 var searchEngines = map[string]string{
-	"duckduckgo": "https://duckduckgo.com/?q=%s",
 	"google":     "https://www.google.com/search?q=%s",
+	"duckduckgo": "https://duckduckgo.com/?q=%s",
 	"bing":       "https://www.bing.com/search?q=%s",
+	"ecosia":     "https://www.ecosia.org/search?q=%s",
+	"startpage":  "https://www.startpage.com/sp/search?query=%s",
+	"kagi":       "https://kagi.com/search?q=%s",
 	"brave":      "https://search.brave.com/search?q=%s",
-	"startpage":  "https://www.startpage.com/do/search?q=%s",
+	"qwant":      "https://www.qwant.com/?q=%s",
 }
+
+// EngineNames is the order engines are listed in Settings, same as Linux.
+var EngineNames = []struct{ Key, Name string }{
+	{"google", "Google"}, {"duckduckgo", "DuckDuckGo"}, {"bing", "Bing"}, {"ecosia", "Ecosia"},
+	{"startpage", "Startpage"}, {"kagi", "Kagi"}, {"brave", "Brave Search"}, {"qwant", "Qwant"},
+}
+
+// CustomSearch is the user's own search address (with %s for the words), used when the engine is "custom".
+var CustomSearch string
 
 // ResolveInput turns what the user typed in the address bar into a URL to load.
 // Text that looks like an address is opened; anything else becomes a search.
@@ -40,6 +52,9 @@ func ResolveInput(input, engine string) string {
 		return scheme + s
 	}
 	tmpl, ok := searchEngines[engine]
+	if engine == "custom" && strings.Contains(CustomSearch, "%s") && IsAddress(strings.ReplaceAll(CustomSearch, "%s", "x")) {
+		tmpl, ok = CustomSearch, true
+	}
 	if !ok {
 		tmpl = searchEngines["duckduckgo"]
 	}

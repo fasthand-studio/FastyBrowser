@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -90,7 +91,7 @@ func TestSettingsNormalize(t *testing.T) {
 
 func TestSettingsAndSessionRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	if got := LoadSettings(dir); got != DefaultSettings() {
+	if got := LoadSettings(dir); !reflect.DeepEqual(got, DefaultSettings()) {
 		t.Fatalf("missing file should give defaults, got %+v", got)
 	}
 	want := DefaultSettings()
@@ -99,7 +100,7 @@ func TestSettingsAndSessionRoundTrip(t *testing.T) {
 	if err := SaveSettings(dir, want); err != nil {
 		t.Fatal(err)
 	}
-	if got := LoadSettings(dir); got != want {
+	if got := LoadSettings(dir); !reflect.DeepEqual(got, want) {
 		t.Fatalf("round trip: got %+v want %+v", got, want)
 	}
 	if err := SaveSession(dir, Session{URLs: []string{"https://a.example", "https://b.example"}, Active: 1}); err != nil {
