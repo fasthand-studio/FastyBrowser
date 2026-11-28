@@ -100,8 +100,85 @@ export function DownloadPanel() {
         <div><small>Engine</small><strong>WebKitGTK 6.0</strong></div>
         <div><small>Interface</small><strong>GTK 4 + libadwaita</strong></div>
       </div>
-      <div className="download-notice"><TreeIcon id="information" size={18} color="#d9b973" dark /><span>Documented Linux baseline: current Arch, Ubuntu 24.04+, Debian 13+, and Fedora 40+. Release notes report testing on Arch only. No Windows, macOS, or ARM64 asset is published.</span></div>
+      <div className="download-notice"><TreeIcon id="information" size={18} color="#d9b973" dark /><span>Documented Linux baseline: current Arch, Ubuntu 24.04+, Debian 13+, and Fedora 40+. Release notes report testing on Arch only. No macOS or ARM64 asset is published. A Windows preview is available in the next section.</span></div>
       <div className="download-secondary-links"><a href={`${RELEASE_BASE}/SHA256SUMS`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/v1.1.1" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/install.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Install guide</a><a href={publicUrl("/fasty-product-guide.pdf")} download><TreeIcon id="book" size={16} color="#aaa59e" dark />Product guide</a></div>
+    </div>
+  );
+}
+
+const WIN_BASE = "https://github.com/fasthand-studio/FastyBrowser/releases/download/windows-v0.1.0";
+
+const winPackages = [
+  {
+    id: "installer",
+    label: "Installer",
+    name: "Fasty-Setup-0.1.0-x64.exe",
+    size: "4.29 MB",
+    href: `${WIN_BASE}/Fasty-Setup-0.1.0-x64.exe`,
+    sha256: "3e0888401fcd93e8b47e8c8d3954ce723e018504f13537c66a18428cd629d48a",
+    command: "Fasty-Setup-0.1.0-x64.exe /SILENT /CURRENTUSER",
+    note: "Installs for your user account without administrator rights, adds a Start Menu entry, and can list Fasty under Default apps. The silent command above is optional; double-click the file to use the wizard.",
+  },
+  {
+    id: "zip",
+    label: "Portable zip",
+    name: "Fasty-0.1.0-x64-portable.zip",
+    size: "3.10 MB",
+    href: `${WIN_BASE}/Fasty-0.1.0-x64-portable.zip`,
+    sha256: "a37388c7382a7692df1001a853c8991e4246fe6fb40a76721d0fb14a78441099",
+    command: "Expand-Archive Fasty-0.1.0-x64-portable.zip -DestinationPath Fasty\n.\\Fasty\\fasty.exe",
+    note: "Unzip anywhere and run fasty.exe. Nothing is installed; your settings still live under your user profile.",
+  },
+];
+
+export function WindowsDownloadPanel() {
+  const [selectedId, setSelectedId] = useState("installer");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const selected = winPackages.find((item) => item.id === selectedId) ?? winPackages[0];
+
+  const copyCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(selected.command);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1800);
+    } catch {
+      setCopyState("error");
+    }
+  };
+
+  return (
+    <div className="download-card">
+      <div className="download-card-top">
+        <div className="platform-mark"><TreeIcon id="global" size={30} color="#0579fe" /></div>
+        <div><strong>Fasty for Windows 0.1.0</strong><span>Windows 10 / 11 · x64 · Preview</span></div>
+        <div className="download-state is-available"><span />Preview release</div>
+      </div>
+      <div className="package-tabs" role="tablist" aria-label="Windows package format">
+        {winPackages.map((item) => (
+          <button key={item.id} id={`win-tab-${item.id}`} role="tab" aria-selected={selectedId === item.id} aria-controls={`win-panel-${item.id}`} className={selectedId === item.id ? "is-active" : ""} onClick={() => { setSelectedId(item.id); setCopyState("idle"); }}>{item.label}</button>
+        ))}
+      </div>
+      <div className="package-panel" id={`win-panel-${selected.id}`} role="tabpanel" aria-labelledby={`win-tab-${selected.id}`}>
+        <div className="package-file"><div><small>SELECTED ASSET</small><strong>{selected.name}</strong></div><span>{selected.size}</span></div>
+        <a className="button button-on-dark package-download" href={selected.href} download><TreeIcon id="direct-down" size={18} color="#171717" />Download {selected.label}</a>
+        <div className="install-command">
+          <div><span>{selected.id === "installer" ? "INSTALL (OPTIONAL)" : "RUN"}</span><button onClick={copyCommand} aria-label="Copy command"><TreeIcon id={copyState === "copied" ? "check" : "copy"} size={15} color={copyState === "copied" ? "#74d174" : "#aaa59e"} dark />{copyState === "copied" ? "Copied" : copyState === "error" ? "Select manually" : "Copy"}</button></div>
+          <pre>{selected.command}</pre>
+        </div>
+        <p className="package-note">{selected.note}</p>
+        <details className="checksum-details">
+          <summary>SHA-256 checksum</summary>
+          <code>{selected.sha256}</code>
+        </details>
+      </div>
+      <div className="download-requirements">
+        <div><small>Windows</small><strong>10 or 11, 64-bit</strong></div>
+        <div><small>Architecture</small><strong>x64 only</strong></div>
+        <div><small>Engine</small><strong>Edge WebView2</strong></div>
+        <div><small>Runtime</small><strong>WebView2 Runtime</strong></div>
+      </div>
+      <div className="download-notice"><TreeIcon id="information" size={18} color="#d9b973" dark /><span>Preview, tested on Windows 11 only. The files are not code-signed, so Windows SmartScreen may warn; compare the SHA-256 above. Fewer features than Linux: no passkeys, extensions or bookmarks yet. No ARM64 build.</span></div>
+      <div className="download-secondary-links"><a href={`${WIN_BASE}/SHA256SUMS-windows.txt`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/windows-v0.1.0" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/windows-port/docs/windows.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Windows guide</a></div>
     </div>
   );
 }

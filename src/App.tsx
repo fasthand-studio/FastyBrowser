@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { IconId } from "icon-tree-animate";
 import { BrandMark, FeatureStatus, publicUrl, SectionHeading, TextLink, TreeIcon } from "./components";
 import { AuthenticatorDemo, HeroBrowser, PipDemo, ProductPreview, ShieldDemo, SleepDemo } from "./demos";
-import { DownloadPanel } from "./downloads";
+import { DownloadPanel, WindowsDownloadPanel } from "./downloads";
 
 const STUDIO_URL = "https://fasthandstudio.asia/";
 const REPO_URL ="https://github.com/fasthand-studio/FastyBrowser";
@@ -24,15 +24,15 @@ const features: { icon: IconId; title: string; description: string; status: stri
 const faqs = [
   {
     question: "Which platforms does Fasty support?",
-    answer: "The documented target is Linux x86_64 with glibc 2.39+, including current Arch, Ubuntu 24.04+, Debian 13+, and Fedora 40+. Release notes report testing on Arch only. Windows and macOS builds are not documented, so this site does not claim support for them.",
+    answer: "Linux x86_64 with glibc 2.39+ is the main target, including current Arch, Ubuntu 24.04+, Debian 13+, and Fedora 40+; release notes report testing on Arch only. A Windows 10/11 (x64) preview is also available; it has been tested on Windows 11 only and has fewer features. macOS and ARM64 builds are not published.",
   },
   {
     question: "Can I download a ready-to-run binary?",
-    answer: "Fasty 1.1.1 publishes AppImage, .deb, .rpm, and tarball assets for Linux x86_64, plus SHA256SUMS. No Windows, macOS, or ARM64 binary is published. The AppImage still requires WebKitGTK 6.0, GTK 4, and libadwaita.",
+    answer: "Yes. Fasty 1.1.1 publishes AppImage, .deb, .rpm, and tarball assets for Linux x86_64, plus SHA256SUMS; the AppImage still requires WebKitGTK 6.0, GTK 4, and libadwaita. The Windows 0.1.0 preview publishes an installer and a portable zip with their own SHA-256 checksums and needs the Edge WebView2 Runtime. No macOS or ARM64 binary is published.",
   },
   {
     question: "Is Fasty based on Chromium or Electron?",
-    answer: "No. Fasty is a native Linux browser written in Go and built on WebKitGTK 6.0 with GTK 4 and libadwaita.",
+    answer: "On Linux, no: Fasty is a native browser written in Go and built on WebKitGTK 6.0 with GTK 4 and libadwaita. The Windows preview is also written in Go but draws pages with Microsoft Edge WebView2, which is Chromium-based, because WebKitGTK does not run on Windows. It does not bundle Chromium or Electron.",
   },
   {
     question: "Does Fasty require an account or send telemetry?",
@@ -103,12 +103,13 @@ function App() {
             <div className="hero-grid">
               <div className="hero-copy">
                 <h1 id="hero-title">Less noise.<br /><em>More web.</em></h1>
-                <p className="hero-description">Fasty is a private, native Linux browser built to stay out of your way—with sleeping tabs, a built-in shield, and local-first tools.</p>
+                <p className="hero-description">Fasty is a private, native browser for Linux, with a Windows preview, built to stay out of your way—with sleeping tabs, a built-in shield, and local-first tools.</p>
                 <div className="hero-actions">
                   <a className="button button-primary" href="#download"><TreeIcon id="direct-down" size={18} color="#ffffff" dark />Download for Linux</a>
+                  <a className="button button-secondary" href="#download-windows"><TreeIcon id="direct-down" size={18} color="#5301fe" />Windows preview</a>
                   <a className="button button-secondary" href="#preview"><TreeIcon id="play" size={17} color="#5301fe" />Explore the preview</a>
                 </div>
-                <div className="hero-trust"><span><TreeIcon id="check" size={16} color="#0a9809" />No account</span><span><TreeIcon id="check" size={16} color="#0a9809" />No telemetry</span><span><TreeIcon id="check" size={16} color="#0a9809" />MIT licensed</span><span><TreeIcon id="check" size={16} color="#0a9809" />Linux x86_64</span></div>
+                <div className="hero-trust"><span><TreeIcon id="check" size={16} color="#0a9809" />No account</span><span><TreeIcon id="check" size={16} color="#0a9809" />No telemetry</span><span><TreeIcon id="check" size={16} color="#0a9809" />MIT licensed</span><span><TreeIcon id="check" size={16} color="#0a9809" />Linux x86_64</span><span><TreeIcon id="check" size={16} color="#0a9809" />Windows 10/11 preview</span></div>
               </div>
               <div className="hero-visual"><HeroBrowser /><div className="hero-caption"><span>A closer look at the Fasty experience</span><span>WebKitGTK 6.0 · GTK 4</span></div></div>
             </div>
@@ -185,6 +186,18 @@ function App() {
               <div className="download-availability"><span />Four verified packages · x86_64 · Linux</div>
             </div>
             <DownloadPanel />
+          </div>
+        </section>
+
+        <section className="section download-section" id="download-windows" aria-labelledby="download-windows-title">
+          <div className="container download-grid">
+            <div className="download-copy">
+              <SectionHeading dark id="download-windows-title" title="Fasty for Windows is in preview." description="An installer and a portable zip for Windows 10 and 11. Both come from the official GitHub release and have a published SHA-256 checksum." />
+              <p>The Windows build is written in Go and draws pages with Microsoft Edge WebView2, so it needs the WebView2 Runtime (already part of Windows 11 and current Windows 10). It has the tabs, shield, sleeping tabs and settings; it does not have passkeys, extensions or bookmarks yet. It was tested on Windows 11 only.</p>
+              <div className="download-availability"><span />Two packages · x64 · Windows 10/11 · Preview</div>
+              <p><a href="#download">Looking for Linux? Jump to the Linux downloads.</a></p>
+            </div>
+            <WindowsDownloadPanel />
           </div>
         </section>
 
