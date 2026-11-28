@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TreeIcon } from "./components";
+import { publicUrl, TreeIcon } from "./components";
 
 const RELEASE_BASE = "https://github.com/fasthand-studio/FastyBrowser/releases/download/v1.1.1";
 
@@ -101,7 +101,7 @@ export function DownloadPanel() {
         <div><small>Interface</small><strong>GTK 4 + libadwaita</strong></div>
       </div>
       <div className="download-notice"><TreeIcon id="information" size={18} color="#d9b973" dark /><span>Documented Linux baseline: current Arch, Ubuntu 24.04+, Debian 13+, and Fedora 40+. Release notes report testing on Arch only. No Windows, macOS, or ARM64 asset is published.</span></div>
-      <div className="download-secondary-links"><a href={`${RELEASE_BASE}/SHA256SUMS`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/v1.1.1" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/install.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Install guide</a><a href="/fasty-product-guide.pdf" download><TreeIcon id="book" size={16} color="#aaa59e" dark />Product guide</a></div>
+      <div className="download-secondary-links"><a href={`${RELEASE_BASE}/SHA256SUMS`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/v1.1.1" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/install.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Install guide</a><a href={publicUrl("/fasty-product-guide.pdf")} download><TreeIcon id="book" size={16} color="#aaa59e" dark />Product guide</a></div>
     </div>
   );
 }

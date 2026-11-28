@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { IconId } from "icon-tree-animate";
-import { BrandMark, FeatureStatus, SectionHeading, TextLink, TreeIcon } from "./components";
+import { BrandMark, FeatureStatus, publicUrl, SectionHeading, TextLink, TreeIcon } from "./components";
 import { AuthenticatorDemo, HeroBrowser, PipDemo, ProductPreview, ShieldDemo, SleepDemo } from "./demos";
 import { DownloadPanel } from "./downloads";
 
 const REPO_URL = "https://github.com/fasthand-studio/FastyBrowser";
 const INSTALL_DOC_URL = "https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/install.md";
 const FEATURES_DOC_URL = "https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/features.md";
-const GUIDE_URL = "/fasty-product-guide.pdf";
+const GUIDE_URL = publicUrl("/fasty-product-guide.pdf");
 
 const features: { icon: IconId; title: string; description: string; status: string; experimental?: boolean; color: string }[] = [
   { icon: "moon", title: "Tabs that sleep", description: "Unused tabs unload after five minutes by default, while tabs playing audio stay awake.", status: "Implemented", color: "#8e6bd8" },
@@ -194,7 +194,7 @@ function App() {
               <SectionHeading id="about-title" title="Built in the open." description="FastyBrowser is an independent open-source project from FastHand Studio, exploring a calmer native browser for Linux." />
               <p>The project combines Go, WebKitGTK, GTK, and libadwaita with a local-first approach to privacy and browser data. It is a young project: site compatibility, extension APIs, passkeys, and PiP have documented limits. Its original logo and brand assets are used here under the repository’s MIT License.</p>
               <div className="about-facts"><div><small>Author</small><strong>FastHand Studio</strong></div><div><small>License</small><strong>MIT</strong></div><div><small>Language</small><strong>Go</strong></div><div><small>Engine</small><strong>WebKitGTK 6.0</strong></div></div>
-              <div className="about-links"><TextLink href={REPO_URL} external>GitHub repository</TextLink><TextLink href="/LICENSE.fasty.txt" external>Read the license</TextLink><TextLink href="/fasty-logo.svg" external>Download original logo</TextLink></div>
+              <div className="about-links"><TextLink href={REPO_URL} external>GitHub repository</TextLink><TextLink href={publicUrl("/LICENSE.fasty.txt")} external>Read the license</TextLink><TextLink href={publicUrl("/fasty-logo.svg")} external>Download original logo</TextLink></div>
             </div>
           </div>
         </section>

@@ -89,8 +89,12 @@ export function TreeIcon({
   );
 }
 
+export function publicUrl(path: string) {
+  return `${import.meta.env.BASE_URL}${path.replace(/^\//, "")}`;
+}
+
 export function BrandMark({ size = 32, className = "" }: { size?: number; className?: string }) {
-  return <img className={`brand-mark ${className}`} src="/fasty-logo.svg" alt="Fasty Browser logo" width={size} height={size} />;
+  return <img className={`brand-mark ${className}`} src={publicUrl("/fasty-logo.svg")} alt="Fasty Browser logo" width={size} height={size} />;
 }
 
 export function SectionHeading({
