@@ -50,12 +50,13 @@ Needs Go, Rust, `curl`, `python3`, WebKitGTK 6.0 and GStreamer plugins, and a
 system with glibc 2.39 or newer (Ubuntu 24.04+, Debian 13+, Fedora 40+,
 current Arch). Full steps and package names: [docs/install.md](docs/install.md).
 
-### Windows (preview)
+### Windows
 
-A Windows 10/11 build lives in [`windows/`](windows/). It is a separate Go module that draws pages with
-Microsoft Edge WebView2, so it does not use WebKit and does not change anything on Linux. It has fewer
-features than the Linux build. What works, what is missing, and how to build it:
-[docs/windows.md](docs/windows.md).
+Fasty 1.2.0 for Windows 10 and 11 (x64) lives in [`windows/`](windows/). It is a separate Go module that
+draws pages with Microsoft Edge WebView2 inside the same window design as Linux, so it does not use WebKit
+and does not change anything on Linux. It adds voice search, and is still missing some Linux features
+(extensions, picture in picture and others). What matches, what is missing, how it was tested, and how to
+build it: [docs/windows.md](docs/windows.md).
 
 ## Keyboard shortcuts
 
