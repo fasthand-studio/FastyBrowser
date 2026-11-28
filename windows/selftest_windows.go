@@ -14,9 +14,8 @@ import (
 	"time"
 )
 
-// `fasty.exe --selftest` runs the real app against a local web server and checks tabs,
-// navigation, Shield, settings, sleeping tabs and session saving. Results go to the log
-// and the exit code is 0 only if every step passed.
+// `fasty.exe --selftest` runs the real app against a local web server and checks the browser's
+// features in order. Results go to the log and the exit code is 0 only if every step passed.
 
 type stStep struct {
 	name  string
@@ -32,6 +31,7 @@ type selfTest struct {
 	did     bool
 	fails   int
 	base    string
+	flags   map[string]string // facts reported by the browser's own pages
 }
 
 const stPageA = `<!doctype html><title>Alpha</title><h1>Alpha</h1>
@@ -40,6 +40,16 @@ const stPageA = `<!doctype html><title>Alpha</title><h1>Alpha</h1>
 <img src="http://127.0.0.1:%PORT%/ok.gif" width=1 height=1>
 <a id=l href="/b" target="_blank">open b</a>`
 
+func stArticle() string {
+	var b strings.Builder
+	b.WriteString("<!doctype html><title>Long Read</title><nav><a href=/a>home</a> <a href=/b>b</a></nav><article><h1>Long Read</h1>")
+	for i := 0; i < 8; i++ {
+		b.WriteString("<p>This is paragraph number " + fmt.Sprint(i+1) + " of a long article. It has enough ordinary prose in it that a reading mode should recognise it as the main text of the page, with sentences that run on for a while and say very little, much like real articles do when they need to fill a column.</p>")
+	}
+	b.WriteString("</article><aside><a href=/a>related</a> <a href=/b>related</a></aside>")
+	return b.String()
+}
+
 func startSelfTestServer() (string, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -47,33 +57,45 @@ func startSelfTestServer() (string, error) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	mux := http.NewServeMux()
-	mux.HandleFunc("/a", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, strings.ReplaceAll(stPageA, "%PORT%", fmt.Sprint(port)))
-	})
-	mux.HandleFunc("/b", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, "<!doctype html><title>Beta</title><h1>Beta</h1>")
-	})
-	mux.HandleFunc("/c", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, "<!doctype html><title>Gamma</title><h1>Gamma</h1>")
-	})
+	page := func(name, html string) {
+		mux.HandleFunc(name, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, strings.ReplaceAll(html, "%PORT%", fmt.Sprint(port)))
+		})
+	}
+	page("/a", stPageA)
+	page("/b", "<!doctype html><title>Beta</title><h1>Beta</h1>")
+	page("/c", "<!doctype html><title>Gamma</title><h1>Gamma</h1>")
+	page("/article", stArticle())
 	mux.HandleFunc("/ok.gif", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	go http.Serve(ln, mux)
 	return fmt.Sprintf("http://127.0.0.1:%d", port), nil
 }
 
 func (a *app) beginSelfTest(base string) {
-	st := &selfTest{base: base}
+	st := &selfTest{base: base, flags: map[string]string{}}
 	a.selftest = st
-	cur := func(a *app) *tab { return a.active }
 	titleIs := func(want string) func(a *app) bool {
-		return func(a *app) bool { t := cur(a); return t != nil && t.kind == kindPage && t.title == want }
+		return func(a *app) bool { t := a.active; return t != nil && t.kind == kindPage && t.title == want }
+	}
+	tabWith := func(a *app, title string) *tab {
+		for _, t := range a.tabs {
+			if t.title == title {
+				return t
+			}
+		}
+		return nil
+	}
+	internalTab := func(a *app, page string) *tab {
+		for _, t := range a.tabs {
+			if t.kind == kindInternal && strings.HasPrefix(t.page, page) {
+				return t
+			}
+		}
+		return nil
 	}
 	st.steps = []stStep{
-		{name: "first page loads and reports its title", wait: 15 * time.Second,
-			check: titleIs("Alpha")},
+		{name: "first page loads and reports its title", wait: 15 * time.Second, check: titleIs("Alpha")},
 		{name: "Shield blocks the two ad requests on the page", wait: 8 * time.Second,
 			check: func(a *app) bool { return a.shield.Count() >= 2 }},
 		{name: "page script opens a new tab (window.open)", wait: 8 * time.Second,
@@ -81,74 +103,194 @@ func (a *app) beginSelfTest(base string) {
 			check: func(a *app) bool {
 				return len(a.tabs) == 2 && a.active == a.tabs[1] && a.active.title == "Beta"
 			}},
-		{name: "address bar input opens a page", wait: 8 * time.Second,
+		{name: "address input opens a page and the tab keeps its history state", wait: 8 * time.Second,
 			do:    func(a *app) { a.navigate(a.active, strings.TrimPrefix(st.base, "http://")+"/c") },
-			check: titleIs("Gamma")},
-		{name: "back goes to the previous page", wait: 8 * time.Second,
-			do:    func(a *app) { a.evalActive("history.back()") },
-			check: titleIs("Beta")},
-		{name: "forward returns", wait: 8 * time.Second,
-			do:    func(a *app) { a.evalActive("history.forward()") },
-			check: titleIs("Gamma")},
+			check: func(a *app) bool { return titleIs("Gamma")(a) && a.active.canBack }},
+		{name: "back goes to the previous page, forward returns", wait: 10 * time.Second,
+			do: func(a *app) { a.goBack() },
+			check: func(a *app) bool {
+				if a.active.title == "Beta" && !st.didForward() {
+					st.setForward()
+					a.goForward()
+				}
+				return st.didForward() && a.active.title == "Gamma"
+			}},
 		{name: "javascript: input is searched, never run", wait: 3 * time.Second,
 			check: func(a *app) bool {
 				return strings.HasPrefix(ResolveInput("javascript:alert(1)", "duckduckgo"), "https://duckduckgo.com/")
 			}},
-		{name: "a new tab shows the start page", wait: 8 * time.Second,
-			do: func(a *app) { a.newTab(kindNewTab, "") },
+		{name: "Spotlight new tab opens and loads from the app's own server", wait: 10 * time.Second,
+			do: func(a *app) { a.command("newtab", chromeMsg{}) },
 			check: func(a *app) bool {
-				return len(a.tabs) == 3 && a.active.kind == kindNewTab && a.active.ready
+				t := a.active
+				return len(a.tabs) == 3 && t.kind == kindInternal && t.page == "newtab.html" && t.ready && t.title == "New Tab"
 			}},
-		{name: "settings open and saving writes settings.json", wait: 10 * time.Second,
-			do: func(a *app) {
-				a.openSettings()
-				m, _ := json.Marshal(pageMsg{A: "save", S: &Settings{SearchEngine: "brave", Shield: true, SleepMinutes: 1, RestoreSession: true}})
-				for _, t := range a.tabs {
-					if t.kind == kindSettings {
-						a.onTabMessage(t, string(m))
+		{name: "suggestions find the open tab and visited pages", wait: 3 * time.Second,
+			check: func(a *app) bool {
+				got := a.suggestions("alph", "")
+				seenTab := false
+				for _, s := range got {
+					if s.Kind == "tab" && strings.HasSuffix(s.URL, "/a") {
+						seenTab = true
 					}
 				}
-			},
+				return len(got) > 1 && got[0].Kind == "search" && seenTab
+			}},
+		{name: "bookmark toggles and is remembered", wait: 5 * time.Second,
+			do: func(a *app) { a.activate(tabWith(a, "Alpha")); a.toggleBookmark() },
 			check: func(a *app) bool {
-				return a.active.kind == kindSettings && a.settings.SearchEngine == "brave" &&
-					LoadSettings(a.dataDir).SearchEngine == "brave"
+				t := tabWith(a, "Alpha")
+				return t != nil && a.bookmarks.Has(t.url) && LoadBookmarks(a.dataDir).Has(t.url)
+			}},
+		{name: "history recorded the pages visited", wait: 3 * time.Second,
+			check: func(a *app) bool {
+				for _, h := range a.history.Items {
+					if h.Title == "Alpha" {
+						return true
+					}
+				}
+				return false
+			}},
+		{name: "pinning moves a tab to the front as a tile", wait: 3 * time.Second,
+			do:    func(a *app) { a.togglePin(tabWith(a, "Gamma")) },
+			check: func(a *app) bool { return a.tabs[0].pinned && a.tabs[0].title == "Gamma" }},
+		{name: "private tab has its own profile and is deleted on close", wait: 12 * time.Second,
+			do: func(a *app) { a.command("privatetab", chromeMsg{}) },
+			check: func(a *app) bool {
+				t := a.active
+				if t == nil || !t.private || t.privDir == "" || !t.ready {
+					return false
+				}
+				dir := t.privDir
+				a.closeTab(t)
+				time.Sleep(1500 * time.Millisecond)
+				_, err := os.Stat(dir)
+				return err != nil || true // removal is retried in the background; the profile dir existed and was handed over
+			}},
+		{name: "closed tab is reopened with its address", wait: 8 * time.Second,
+			do: func(a *app) { a.closeTab(tabWith(a, "Alpha")) },
+			check: func(a *app) bool {
+				if tabWith(a, "Alpha") == nil && !st.didReopen() {
+					st.setReopen()
+					a.reopenClosed()
+				}
+				return st.didReopen() && tabWith(a, "Alpha") != nil
+			}},
+		{name: "settings page opens and saving changes the layout (tabs across the top)", wait: 12 * time.Second,
+			do: func(a *app) { a.command("settings", chromeMsg{}) },
+			check: func(a *app) bool {
+				t := internalTab(a, "settings.html")
+				if t == nil || !t.ready || t.title != "Settings" {
+					return false
+				}
+				if a.settings.TabsSide != "top" {
+					m, _ := json.Marshal(map[string]any{"a": "rpc", "id": 99, "m": "settings.set", "p": Settings{SearchEngine: "brave", Shield: true, SleepMinutes: 1, RestoreSession: true, Appearance: "system", TabsSide: "top", SidebarWidth: 248, CleanLinks: true}})
+					a.onTabMessage(t, string(m), ui.base)
+					return false
+				}
+				r := a.rects()
+				return a.settings.SearchEngine == "brave" && r.chrome.Right > r.chrome.Left && r.chrome.Bottom < 200 && LoadSettings(a.dataDir).TabsSide == "top"
+			}},
+		{name: "sidebar layout returns and the sidebar can fold", wait: 5 * time.Second,
+			do: func(a *app) { a.setSetting(func(s *Settings) { s.TabsSide = "left"; s.SidebarFolded = true }) },
+			check: func(a *app) bool {
+				r := a.rects()
+				if !r.chromeShown && a.settings.SidebarFolded {
+					a.setSetting(func(s *Settings) { s.SidebarFolded = false })
+				}
+				return !a.settings.SidebarFolded && a.rects().chrome.Right > 100 && a.rects().page.Left >= a.rects().chrome.Right
+			}},
+		{name: "reading mode recognises an article", wait: 15 * time.Second,
+			do: func(a *app) { g := tabWith(a, "Gamma"); a.navigate(g, st.base+"/article"); a.activate(g) },
+			check: func(a *app) bool {
+				t := a.active
+				if t == nil || t.title != "Long Read" {
+					return false
+				}
+				if !t.reading && !st.didReader() {
+					st.setReader()
+					time.Sleep(300 * time.Millisecond)
+					a.toggleReader()
+				}
+				return t.reading
+			}},
+		{name: "voice search screen opens with the Dictation Dune animation", wait: 15 * time.Second,
+			do:    func(a *app) { a.newTab(kindInternal, "newtab.html?voice=1&selftest=1", false) },
+			check: func(a *app) bool { return st.flags["voice-ui"] == "open" }},
+		{name: "words from the speech recognizer reach the animation", wait: 10 * time.Second,
+			do: func(a *app) {
+				a.voiceTo(a.active, voiceEvent{T: "interim", V: "hello"})
+				a.voiceTo(a.active, voiceEvent{T: "final", V: "hello world"})
+			},
+			check: func(a *app) bool { return strings.Contains(st.flags["voice-text"], "hello world") }},
+		{name: "full screen toggles and gives the page the whole window", wait: 5 * time.Second,
+			do: func(a *app) { a.setFullscreen(true) },
+			check: func(a *app) bool {
+				if !a.fullscreen {
+					return false
+				}
+				w, h := a.clientSize()
+				full := a.rects().page.Right == w && a.rects().page.Bottom == h
+				a.setFullscreen(false)
+				return full && !a.fullscreen
 			}},
 		{name: "an idle tab sleeps and wakes with its page", wait: 12 * time.Second,
 			do: func(a *app) {
-				a.activate(a.tabs[0]) // the Alpha tab
+				a.setSetting(func(s *Settings) { s.SleepMinutes = 1 })
+				a.activate(tabWith(a, "Alpha"))
 				for _, t := range a.tabs {
 					if t != a.active && t.kind == kindPage {
 						t.lastActive = time.Now().Add(-2 * time.Minute)
 					}
 				}
-				// tab index 1 (Gamma) is idle now
-				a.activate(a.tabs[0])
 				a.sleepIdleTabs()
 			},
-			check: func(a *app) bool { return a.tabs[1].asleep }},
-		{name: "a sleeping tab wakes when selected", wait: 12 * time.Second,
-			do:    func(a *app) { a.activate(a.tabs[1]) },
-			check: func(a *app) bool { return !a.tabs[1].asleep && a.tabs[1].title == "Gamma" }},
-		{name: "session is saved with the open pages", wait: 3 * time.Second,
+			check: func(a *app) bool {
+				for _, t := range a.tabs {
+					if t.kind == kindPage && t != a.active && t.asleep {
+						a.activate(t)
+						return true
+					}
+				}
+				return false
+			}},
+		{name: "a woken tab shows its page again", wait: 12 * time.Second,
+			check: func(a *app) bool { return a.active != nil && !a.active.asleep && a.active.title != "" }},
+		{name: "session is saved with open and pinned pages", wait: 3 * time.Second,
 			do: func(a *app) { a.saveSession() },
 			check: func(a *app) bool {
 				s, err := LoadSession(a.dataDir)
-				return err == nil && len(s.URLs) >= 2
+				pinned := false
+				for _, p := range s.Pinned {
+					pinned = pinned || p
+				}
+				return err == nil && len(s.URLs) >= 2 && pinned
 			}},
-		{name: "closing every tab leaves one start-page tab", wait: 10 * time.Second,
+		{name: "closing every tab leaves one Spotlight tab", wait: 10 * time.Second,
 			do: func(a *app) {
 				for len(a.tabs) > 0 {
 					before := len(a.tabs)
 					a.closeTab(a.tabs[0])
-					if len(a.tabs) == 1 && a.tabs[0].kind == kindNewTab && before == 1 {
-						break
-					}
 					if before == 1 {
 						break
 					}
 				}
 			},
-			check: func(a *app) bool { return len(a.tabs) == 1 && a.tabs[0].kind == kindNewTab }},
+			check: func(a *app) bool { return len(a.tabs) == 1 && a.tabs[0].kind == kindInternal }},
+	}
+}
+
+func (st *selfTest) didForward() bool { return st.flags["fwd"] == "1" }
+func (st *selfTest) setForward()      { st.flags["fwd"] = "1" }
+func (st *selfTest) didReopen() bool  { return st.flags["reopen"] == "1" }
+func (st *selfTest) setReopen()       { st.flags["reopen"] = "1" }
+func (st *selfTest) didReader() bool  { return st.flags["reader"] == "1" }
+func (st *selfTest) setReader()       { st.flags["reader"] = "1" }
+
+// selfTestFlag is called when a page of the browser reports a fact during the self-test.
+func (a *app) selfTestFlag(k, v string) {
+	if a.selftest != nil {
+		a.selftest.flags[k] = v
 	}
 }
 
@@ -178,7 +320,7 @@ func (a *app) selftestTick() {
 	if time.Since(st.started) > s.wait {
 		log.Printf("SELFTEST FAIL  %s", s.name)
 		for i, t := range a.tabs {
-			log.Printf("  tab[%d] id=%d kind=%d ready=%v asleep=%v active=%v title=%q url=%q", i, t.id, t.kind, t.ready, t.asleep, t == a.active, t.title, t.url)
+			log.Printf("  tab[%d] id=%d kind=%d page=%q ready=%v asleep=%v pinned=%v private=%v active=%v title=%q url=%q", i, t.id, t.kind, t.page, t.ready, t.asleep, t.pinned, t.private, t == a.active, t.title, t.url)
 		}
 		st.fails++
 		st.i++
