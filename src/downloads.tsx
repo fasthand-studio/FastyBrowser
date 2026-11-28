@@ -178,7 +178,7 @@ export function WindowsDownloadPanel() {
         <div><small>Runtime</small><strong>WebView2 Runtime</strong></div>
       </div>
       <div className="download-notice"><TreeIcon id="information" size={18} color="#d9b973" dark /><span>Tested on Windows 11 only. The files are not code-signed, so Windows SmartScreen may warn; compare the SHA-256 above. Missing compared with Linux: extensions, picture in picture and hiding page elements. No ARM64 build.</span></div>
-      <div className="download-secondary-links"><a href={`${WIN_BASE}/SHA256SUMS-windows.txt`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/windows-v1.2.0" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/windows-port/docs/windows.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Windows guide</a></div>
+      <div className="download-secondary-links"><a href={`${WIN_BASE}/SHA256SUMS-windows.txt`} target="_blank" rel="noreferrer"><TreeIcon id="shield-security" size={16} color="#aaa59e" dark />Checksums</a><a href="https://github.com/fasthand-studio/FastyBrowser/releases/tag/windows-v1.2.0" target="_blank" rel="noreferrer"><GithubIcon />Release notes</a><a href="https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/windows.md" target="_blank" rel="noreferrer"><TreeIcon id="code" size={16} color="#aaa59e" dark />Windows guide</a></div>
     </div>
   );
 }
