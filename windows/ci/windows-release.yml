@@ -1,0 +1,45 @@
+name: Windows release
+
+# Publishes the Windows installer and portable zip to a GitHub release when a tag like
+# windows-v0.1.0 is pushed. Nothing is published until you push such a tag.
+on:
+  push:
+    tags: ["windows-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: windows/go.mod
+          cache-dependency-path: windows/go.sum
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build
+        run: |
+          $ver = "${{ github.ref_name }}" -replace '^windows-v', ''
+          ./build.ps1 -Version $ver -Installer -Zip
+          "VERSION=$ver" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: Checksums
+        run: |
+          Get-ChildItem dist\installer\*.exe, dist\*.zip | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)" | Out-File -Append -Encoding ascii dist\SHA256SUMS-windows.txt
+          }
+      - uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          name: Fasty for Windows ${{ env.VERSION }} (preview)
+          files: |
+            windows/dist/installer/*.exe
+            windows/dist/*.zip
+            windows/dist/SHA256SUMS-windows.txt

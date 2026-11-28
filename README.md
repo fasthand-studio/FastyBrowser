@@ -50,6 +50,13 @@ Needs Go, Rust, `curl`, `python3`, WebKitGTK 6.0 and GStreamer plugins, and a
 system with glibc 2.39 or newer (Ubuntu 24.04+, Debian 13+, Fedora 40+,
 current Arch). Full steps and package names: [docs/install.md](docs/install.md).
 
+### Windows (preview)
+
+A Windows 10/11 build lives in [`windows/`](windows/). It is a separate Go module that draws pages with
+Microsoft Edge WebView2, so it does not use WebKit and does not change anything on Linux. It has fewer
+features than the Linux build. What works, what is missing, and how to build it:
+[docs/windows.md](docs/windows.md).
+
 ## Keyboard shortcuts
 
 `Ctrl+L` address bar, `Ctrl+K` switch tab, `Ctrl+T` new tab, `Ctrl+W` close
@@ -73,7 +80,7 @@ to `src/assets/js/compat.js`, or send a pull request. Start with
 [Install](docs/install.md) · [Privacy and data](docs/privacy.md) ·
 [Ad blocking](docs/blocking.md) · [Features](docs/features.md) ·
 [Agent control](docs/agent.md) · [Memory and speed](docs/performance.md) ·
-[Development](docs/development.md)
+[Development](docs/development.md) · [Windows](docs/windows.md)
 
 ## License
 

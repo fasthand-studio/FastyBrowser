@@ -1,0 +1,41 @@
+name: Windows
+
+on:
+  push:
+    branches: [main, windows-port]
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  pull_request:
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: windows/go.mod
+          cache-dependency-path: windows/go.sum
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Test, build, installer, zip
+        run: ./build.ps1 -Version 0.1.0 -Installer -Zip
+      - name: Self-test (drives the real app; needs the WebView2 runtime)
+        # The hosted runner has no interactive desktop guarantee, so this step reports but does not gate.
+        continue-on-error: true
+        run: ./build.ps1 -SelfTest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fasty-windows
+          path: |
+            windows/dist/installer/*.exe
+            windows/dist/*.zip
+          if-no-files-found: error
