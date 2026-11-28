@@ -3,7 +3,7 @@
 #   {"t":"ready","lang":"en-US"}  {"t":"interim","v":"..."}  {"t":"final","v":"...","c":0.93}
 #   {"t":"level","v":0.42}        {"t":"error","v":"..."}
 # Fasty stops it by ending the process. Nothing is written to disk and no audio leaves the PC.
-param([string]$Lang = "en-US")
+param([string]$Lang = "en-US", [string]$Wave = "")  # -Wave is for tests: listen to a recorded file instead of the microphone
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 function Emit($o) { [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress)); [Console]::Out.Flush() }
@@ -16,7 +16,7 @@ try {
   if (-not $info) { $info = $installed | Select-Object -First 1 }
   $engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine($info)
   $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
-  $engine.SetInputToDefaultAudioDevice()
+  if ($Wave) { $engine.SetInputToWaveFile($Wave) } else { $engine.SetInputToDefaultAudioDevice() }
   $script:lastLevel = [DateTime]::UtcNow
   Register-ObjectEvent -InputObject $engine -EventName SpeechHypothesized -Action {
     Emit @{ t = "interim"; v = $EventArgs.Result.Text }
@@ -28,9 +28,13 @@ try {
     $now = [DateTime]::UtcNow
     if (($now - $script:lastLevel).TotalMilliseconds -ge 50) { $script:lastLevel = $now; Emit @{ t = "level"; v = [math]::Round($EventArgs.AudioLevel / 100.0, 2) } }
   } | Out-Null
+  $script:done = $false
+  Register-ObjectEvent -InputObject $engine -EventName RecognizeCompleted -Action { $script:done = $true } | Out-Null
   $engine.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)
   Emit @{ t = "ready"; lang = $info.Culture.Name }
-  while ($true) { Wait-Event -Timeout 1 | Out-Null }
+  $deadline = [DateTime]::UtcNow.AddSeconds(12)  # test mode only: a recording is short
+  while (-not ($Wave -and ($script:done -or [DateTime]::UtcNow -gt $deadline))) { Wait-Event -Timeout 1 | Out-Null }
+  Start-Sleep -Milliseconds 300; Wait-Event -Timeout 1 | Out-Null; Emit @{ t = "end" }
 } catch {
   Emit @{ t = "error"; v = $_.Exception.Message }
   exit 1
