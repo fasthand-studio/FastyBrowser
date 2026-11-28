@@ -21,7 +21,7 @@ var voiceScript []byte
 // voiceSession runs the speech helper and forwards what it hears to the page that asked.
 type voiceSession struct {
 	cmd  *exec.Cmd
-	tab  *tab
+	sink *sink
 	done chan struct{}
 	once sync.Once
 }
@@ -33,15 +33,15 @@ type voiceEvent struct {
 	L string  `json:"lang"`
 }
 
-// startVoice begins listening for the given tab. Results reach the page as
+// startVoice begins listening for the page behind sink. Results reach the page as
 // window.fastyVoice({t, v, ...}) and arrive on the UI thread.
-func (a *app) startVoice(t *tab, lang string) {
+func (a *app) startVoice(s *sink, lang string) {
 	a.stopVoice()
 	dir := filepath.Join(os.TempDir(), "fasty-voice")
 	_ = os.MkdirAll(dir, 0o700)
 	script := filepath.Join(dir, "voice.ps1")
 	if err := os.WriteFile(script, voiceScript, 0o600); err != nil {
-		a.voiceTo(t, voiceEvent{T: "error", V: "Could not start voice search: " + err.Error()})
+		a.voiceTo(s, voiceEvent{T: "error", V: "Could not start voice search: " + err.Error()})
 		return
 	}
 	if lang == "" {
@@ -51,14 +51,14 @@ func (a *app) startVoice(t *tab, lang string) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000} // CREATE_NO_WINDOW
 	out, err := cmd.StdoutPipe()
 	if err != nil {
-		a.voiceTo(t, voiceEvent{T: "error", V: err.Error()})
+		a.voiceTo(s, voiceEvent{T: "error", V: err.Error()})
 		return
 	}
 	if err := cmd.Start(); err != nil {
-		a.voiceTo(t, voiceEvent{T: "error", V: "Could not start voice search: " + err.Error()})
+		a.voiceTo(s, voiceEvent{T: "error", V: "Could not start voice search: " + err.Error()})
 		return
 	}
-	vs := &voiceSession{cmd: cmd, tab: t, done: make(chan struct{})}
+	vs := &voiceSession{cmd: cmd, sink: s, done: make(chan struct{})}
 	a.voice = vs
 	go func() {
 		sc := bufio.NewScanner(out)
@@ -71,7 +71,7 @@ func (a *app) startVoice(t *tab, lang string) {
 			ev2 := ev
 			a.runOnUI(func() {
 				if a.voice == vs {
-					a.voiceTo(t, ev2)
+					a.voiceTo(s, ev2)
 				}
 			})
 		}
@@ -80,7 +80,7 @@ func (a *app) startVoice(t *tab, lang string) {
 		a.runOnUI(func() {
 			if a.voice == vs {
 				a.voice = nil
-				a.voiceTo(t, voiceEvent{T: "end"})
+				a.voiceTo(s, voiceEvent{T: "end"})
 			}
 		})
 	}()
@@ -106,12 +106,12 @@ func (a *app) stopVoice() {
 	})
 }
 
-func (a *app) voiceTo(t *tab, ev voiceEvent) {
-	if t == nil || a.indexOf(t) < 0 || !t.ready || a.quitting {
+func (a *app) voiceTo(s *sink, ev voiceEvent) {
+	if s == nil || a.quitting || !s.alive() {
 		return
 	}
 	b, _ := json.Marshal(ev)
-	t.view.Eval("window.fastyVoice&&window.fastyVoice(" + string(b) + ")")
+	s.eval("window.fastyVoice&&window.fastyVoice(" + string(b) + ")")
 }
 
 // ---- running code on the UI thread from other goroutines ----

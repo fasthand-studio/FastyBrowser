@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 )
 
 //go:embed ui
@@ -23,6 +24,9 @@ var uiFiles embed.FS
 type uiServer struct {
 	base  string // http://127.0.0.1:PORT/TOKEN/
 	token string
+
+	mu     sync.Mutex
+	images map[string][]byte // page snapshots shown behind the glass overlay
 }
 
 var ui *uiServer
@@ -36,7 +40,7 @@ func startUIServer() (*uiServer, error) {
 	if _, err := rand.Read(tok); err != nil {
 		return nil, err
 	}
-	s := &uiServer{token: hex.EncodeToString(tok)}
+	s := &uiServer{token: hex.EncodeToString(tok), images: map[string][]byte{}}
 	s.base = "http://" + ln.Addr().String() + "/" + s.token + "/"
 	sub, err := fs.Sub(uiFiles, "ui")
 	if err != nil {
@@ -46,6 +50,19 @@ func startUIServer() (*uiServer, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/"+s.token+"/", func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/"+s.token+"/")
+		if strings.HasPrefix(name, "bg/") {
+			s.mu.Lock()
+			img := s.images[name]
+			s.mu.Unlock()
+			if img == nil {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Header().Set("Cache-Control", "no-store")
+			w.Write(img)
+			return
+		}
 		if name == "" || strings.Contains(path.Clean("/"+name), "..") {
 			http.NotFound(w, r)
 			return
@@ -66,3 +83,23 @@ func (s *uiServer) URL(name string) string { return s.base + name }
 
 // IsInternal reports whether a page address belongs to the browser's own pages.
 func (s *uiServer) IsInternal(u string) bool { return s != nil && strings.HasPrefix(u, s.base) }
+
+// SetImage stores a snapshot and returns its address; Drop forgets it.
+func (s *uiServer) SetImage(name string, jpg []byte) {
+	s.mu.Lock()
+	s.images["bg/"+name] = jpg
+	s.mu.Unlock()
+}
+
+func (s *uiServer) DropImages() {
+	s.mu.Lock()
+	s.images = map[string][]byte{}
+	s.mu.Unlock()
+}
+
+// ImageCount is how many snapshots are held (used by the self-test).
+func (s *uiServer) ImageCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.images)
+}

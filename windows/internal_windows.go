@@ -5,20 +5,26 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
 
 // handleRPC answers calls from the browser's own pages (ui/*.html). The page sends
 // {a:"rpc", id, m, p}; the reply goes back as window.fastyReply(id, result).
-func (a *app) handleRPC(t *tab, m pageMsg) {
+func (a *app) handleRPC(s *sink, m pageMsg) {
 	var res any
 	var p map[string]any
 	_ = json.Unmarshal(m.P, &p)
 	str := func(k string) string { s, _ := p[k].(string); return s }
 	switch m.M {
 	case "state":
-		res = map[string]any{"private": t.private, "theme": a.themeName(), "engine": a.settings.SearchEngine, "version": appVersion}
+		res = map[string]any{"private": s.private, "theme": a.themeName(), "engine": a.settings.SearchEngine, "version": appVersion}
 	case "settings.get":
 		res = a.settings
 	case "settings.set":
@@ -61,17 +67,17 @@ func (a *app) handleRPC(t *tab, m pageMsg) {
 		a.history.Flush()
 		res = true
 	case "suggest":
-		res = a.suggestions(str("q"), "")
+		res = a.suggestions(str("q"), str("mode"))
 	case "nav":
-		a.navigate(t, str("v"))
-		return // this tab is replaced by the page
+		a.rpcNav(s, str("v"), str("mode"), p["private"] == true)
+		return // the tab or overlay that asked is done
 	case "open":
 		if u := str("url"); IsAddress(u) {
-			a.newTab(kindPage, u, t.private)
+			a.newTab(kindPage, u, s.private)
 		}
 		res = true
 	case "voice.start":
-		a.startVoice(t, str("lang"))
+		a.startVoice(s, str("lang"))
 		res = true
 	case "voice.stop":
 		a.stopVoice()
@@ -98,6 +104,39 @@ func (a *app) handleRPC(t *tab, m pageMsg) {
 	case "auth.remove":
 		_ = a.authStore().Remove(str("id"))
 		res = true
+	case "selftest.flag":
+		a.selfTestFlag(str("k"), str("v"))
+		res = true
+	case "openpage":
+		a.hideOverlay()
+		a.openInternal(str("name"), true)
+		res = true
+	case "app.state":
+		res = map[string]any{"version": appVersion, "downloads": downloadsDir(), "engines": EngineNames, "paused": a.settings.ShieldPaused, "hidden": a.hiddenSummary(), "host": a.activeHost()}
+	case "veils.show":
+		a.curtain.ShowAll(str("host"))
+		a.curtain.Flush()
+		a.applyVeilsAll()
+		res = a.hiddenSummary()
+	case "shield.resume":
+		h := str("host")
+		a.setSetting(func(s *Settings) { s.ShieldPaused = removeString(s.ShieldPaused, h) })
+		res = a.settings.ShieldPaused
+	case "data.clear":
+		a.history.Clear()
+		a.history.Flush()
+		_ = os.WriteFile(filepath.Join(a.dataDir, "clear-webdata"), []byte("1"), 0o600)
+		res = map[string]any{"restart": true}
+	case "app.restart":
+		a.restart()
+		res = true
+	case "defaultbrowser":
+		shellOpen("ms-settings:defaultapps")
+		res = true
+	case "bookmarks.import":
+		n := a.bookmarks.AddMany(ImportBookmarksHTML(str("html")))
+		a.bookmarks.Flush()
+		res = map[string]any{"added": n, "total": len(a.bookmarks.Items)}
 	case "downloads":
 		shellOpen(downloadsDir())
 		res = true
@@ -113,10 +152,10 @@ func (a *app) handleRPC(t *tab, m pageMsg) {
 	if id == "" {
 		return
 	}
-	t.view.Eval("window.fastyReply&&window.fastyReply(" + id + "," + string(b) + ")")
+	s.eval("window.fastyReply&&window.fastyReply(" + id + "," + string(b) + ")")
 }
 
-const appVersion = "1.2.0"
+const appVersion = "1.3.0"
 
 // ---- Reading mode (the Linux build's reader.js, run through WebView2) ---------------------------
 
@@ -171,4 +210,113 @@ func (a *app) authStore() *AuthStore {
 		a.auth = s
 	}
 	return a.auth
+}
+
+func removeString(list []string, s string) []string {
+	out := make([]string, 0, len(list))
+	for _, x := range list {
+		if x != s {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// siteHost is a page's host without "www.", used for per-site settings.
+func siteHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+}
+
+func (a *app) activeHost() string {
+	if t := a.active; t != nil && t.kind == kindPage {
+		return siteHost(t.url)
+	}
+	return ""
+}
+
+type hiddenSite struct {
+	Host  string `json:"host"`
+	Count int    `json:"count"`
+	Items []Veil `json:"items"`
+}
+
+func (a *app) hiddenSummary() []hiddenSite {
+	var out []hiddenSite
+	for _, h := range a.curtain.Hosts() {
+		out = append(out, hiddenSite{Host: h, Count: len(a.curtain.Veils(h)), Items: a.curtain.Veils(h)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
+	return out
+}
+
+// restart starts a new copy of the browser and closes this one (used after clearing browsing data).
+func (a *app) restart() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	a.saveSession()
+	a.flushStores()
+	if err := exec.Command(exe).Start(); err != nil {
+		log.Println("restart:", err)
+		return
+	}
+	procPostMessageW.Call(a.hwnd, wmClose, 0, 0)
+}
+
+// pauseShieldHere turns Shield off or on for the current site.
+func (a *app) pauseShieldHere() {
+	h := a.activeHost()
+	if h == "" {
+		return
+	}
+	paused := false
+	a.setSetting(func(s *Settings) {
+		for _, x := range s.ShieldPaused {
+			if x == h {
+				s.ShieldPaused = removeString(s.ShieldPaused, h)
+				return
+			}
+		}
+		s.ShieldPaused = append(s.ShieldPaused, h)
+		paused = true
+	})
+	if paused {
+		a.toast("Shield is off on " + h + ". Reload the page.")
+	} else {
+		a.toast("Shield is back on for " + h + ". Reload the page.")
+	}
+}
+
+func (a *app) shieldPausedFor(t *tab) bool {
+	h := siteHost(t.url)
+	for _, x := range a.settings.ShieldPaused {
+		if x == h {
+			return true
+		}
+	}
+	return false
+}
+
+// applyVeils (re)hides a site's chosen elements in a page and applies the default page zoom.
+func (a *app) applyVeils(t *tab) {
+	if t == nil || t.kind != kindPage || !t.ready || t.asleep {
+		return
+	}
+	css := a.curtain.CSS(siteHost(t.url))
+	b, _ := json.Marshal(css)
+	t.view.Eval("(function(){var s=document.getElementById('fasty-veil');if(!s){s=document.createElement('style');s.id='fasty-veil';(document.head||document.documentElement).appendChild(s)}s.textContent=" + string(b) + "})()")
+	if z := a.settings.PageZoom; z != 100 {
+		t.view.Eval("document.documentElement.style.zoom='" + strconv.FormatFloat(float64(z)/100, 'f', 2, 64) + "'")
+	}
+}
+
+func (a *app) applyVeilsAll() {
+	for _, t := range a.tabs {
+		a.applyVeils(t)
+	}
 }
