@@ -101,14 +101,13 @@ function App() {
           <div className="container">
             <div className="hero-grid">
               <div className="hero-copy">
-                <div className="hero-kicker"><span />Native Linux browser · Open source</div>
                 <h1 id="hero-title">Less noise.<br /><em>More web.</em></h1>
                 <p className="hero-description">Fasty is a private, native Linux browser built to stay out of your way—with sleeping tabs, a built-in shield, and local-first tools.</p>
                 <div className="hero-actions">
                   <a className="button button-primary" href="#download"><TreeIcon id="direct-down" size={18} color="#ffffff" dark />Download for Linux</a>
                   <a className="button button-secondary" href="#preview"><TreeIcon id="play" size={17} color="#5301fe" />Explore the preview</a>
                 </div>
-                <div className="hero-trust"><span><TreeIcon id="check" size={14} color="#0a9809" />No account</span><span><TreeIcon id="check" size={14} color="#0a9809" />No telemetry</span><span><TreeIcon id="check" size={14} color="#0a9809" />MIT licensed</span></div>
+                <div className="hero-trust"><span><TreeIcon id="check" size={16} color="#0a9809" />No account</span><span><TreeIcon id="check" size={16} color="#0a9809" />No telemetry</span><span><TreeIcon id="check" size={16} color="#0a9809" />MIT licensed</span><span><TreeIcon id="check" size={16} color="#0a9809" />Linux x86_64</span></div>
               </div>
               <div className="hero-visual"><HeroBrowser /><div className="hero-caption"><span>A closer look at the Fasty experience</span><span>WebKitGTK 6.0 · GTK 4</span></div></div>
             </div>
@@ -123,12 +122,14 @@ function App() {
 
         <section className="section features-section" id="features" aria-labelledby="features-title">
           <div className="container">
-            <SectionHeading eyebrow="Features" id="features-title" title="A browser that gives you room." description="The essentials are calm and native. The advanced tools are there when you need them, with clear boundaries around experimental functionality." />
+            <SectionHeading id="features-title" title="A browser that gives you room." description="The essentials are calm and native. The advanced tools are there when you need them, with clear boundaries around experimental functionality." />
             <div className="feature-grid">
               {features.map((feature) => (
                 <article className="feature-card" key={feature.title}>
-                  <TreeIcon id={feature.icon} size={27} color={feature.color} mode="hover" />
-                  <h3>{feature.title}</h3>
+                  <div className="card-head">
+                    <TreeIcon id={feature.icon} size={25} color={feature.color} mode="hover" />
+                    <h3>{feature.title}</h3>
+                  </div>
                   <p>{feature.description}</p>
                   <FeatureStatus experimental={feature.experimental}>{feature.status}</FeatureStatus>
                 </article>
@@ -139,14 +140,14 @@ function App() {
 
         <section className="section preview-section" id="preview" aria-labelledby="preview-title">
           <div className="container">
-            <SectionHeading dark eyebrow="Interactive preview" id="preview-title" title="Meet the quieter browser." description="Choose a scene to explore the interface and product ideas behind Fasty." />
+            <SectionHeading dark id="preview-title" title="Meet the quieter browser." description="Choose a scene to explore the interface and product ideas behind Fasty." />
             <ProductPreview />
           </div>
         </section>
 
         <section className="section demos-section" aria-labelledby="demos-title">
           <div className="container">
-            <SectionHeading eyebrow="Product demos" id="demos-title" title="Small details. Real difference." description="Try the concepts behind the feature list. These are interactive explanations, not live browser sessions or performance benchmarks." />
+            <SectionHeading id="demos-title" title="Small details. Real difference." description="Try the concepts behind the feature list. These are interactive explanations, not live browser sessions or performance benchmarks." />
             <div className="demo-grid"><SleepDemo /><ShieldDemo /><PipDemo /><AuthenticatorDemo /></div>
           </div>
         </section>
@@ -154,15 +155,14 @@ function App() {
         <section className="section technology-section" id="technology" aria-labelledby="technology-title">
           <div className="container technology-grid">
             <div className="technology-copy">
-              <SectionHeading eyebrow="Technology" id="technology-title" title="Native where it matters." description="Fasty is written in Go and uses the Linux platform’s own browser and interface stack. That means a focused application instead of a bundled web runtime." />
+              <SectionHeading id="technology-title" title="Native where it matters." description="Fasty is written in Go and uses the Linux platform’s own browser and interface stack. That means a focused application instead of a bundled web runtime." />
               <p>WebKitGTK handles the web platform. GTK 4 and libadwaita shape the desktop experience. Fasty’s own code manages tabs, privacy controls, extensions, local tools, and settings.</p>
               <div className="technology-points">
                 <div><TreeIcon id="check" size={17} color="#0a9809" /><span>No account or remote service is required.</span></div>
                 <div><TreeIcon id="check" size={17} color="#0a9809" /><span>Blocking and browser data are designed to remain local.</span></div>
                 <div><TreeIcon id="check" size={17} color="#0a9809" /><span>The source is available under the MIT License.</span></div>
               </div>
-              <TextLink href={REPO_URL} external>Explore the source</TextLink>
-            </div>
+              <TextLink href={REPO_URL} external>Explore the source</TextLink>            </div>
             <div className="stack-card">
               <div className="stack-card-header"><strong>The Fasty stack</strong><span>Linux desktop</span></div>
               <div className="stack-flow">
@@ -179,7 +179,7 @@ function App() {
         <section className="section download-section" id="download" aria-labelledby="download-title">
           <div className="container download-grid">
             <div className="download-copy">
-              <SectionHeading dark eyebrow="Download & install" id="download-title" title="Fasty 1.1.1 is ready for Linux." description="Choose the package that fits your system. Every asset below comes from the official GitHub release and has a published SHA-256 checksum." />
+              <SectionHeading dark id="download-title" title="Fasty 1.1.1 is ready for Linux." description="Choose the package that fits your system. Every asset below comes from the official GitHub release and has a published SHA-256 checksum." />
               <p>Release assets target x86_64 Linux with glibc 2.39+. The documented baseline includes current Arch, Ubuntu 24.04+, Debian 13+, and Fedora 40+; release testing was reported on Arch only.</p>
               <div className="download-availability"><span />Four verified packages · x86_64 · Linux</div>
             </div>
@@ -191,7 +191,7 @@ function App() {
           <div className="container about-grid">
             <div className="about-logo-card"><BrandMark size={104} /><strong>FastHand Studio</strong><span>Original Fasty identity</span></div>
             <div className="about-copy">
-              <SectionHeading eyebrow="About the project" id="about-title" title="Built in the open." description="FastyBrowser is an independent open-source project from FastHand Studio, exploring a calmer native browser for Linux." />
+              <SectionHeading id="about-title" title="Built in the open." description="FastyBrowser is an independent open-source project from FastHand Studio, exploring a calmer native browser for Linux." />
               <p>The project combines Go, WebKitGTK, GTK, and libadwaita with a local-first approach to privacy and browser data. It is a young project: site compatibility, extension APIs, passkeys, and PiP have documented limits. Its original logo and brand assets are used here under the repository’s MIT License.</p>
               <div className="about-facts"><div><small>Author</small><strong>FastHand Studio</strong></div><div><small>License</small><strong>MIT</strong></div><div><small>Language</small><strong>Go</strong></div><div><small>Engine</small><strong>WebKitGTK 6.0</strong></div></div>
               <div className="about-links"><TextLink href={REPO_URL} external>GitHub repository</TextLink><TextLink href="/LICENSE.fasty.txt" external>Read the license</TextLink><TextLink href="/fasty-logo.svg" external>Download original logo</TextLink></div>
@@ -201,12 +201,12 @@ function App() {
 
         <section className="section docs-section" id="docs" aria-labelledby="docs-title">
           <div className="container">
-            <SectionHeading eyebrow="Documentation" id="docs-title" title="Know what you are installing." description="Use the project guide and official repository for accurate, current instructions. The website does not replace the source documentation." />
+            <SectionHeading id="docs-title" title="Know what you are installing." description="Use the project guide and official repository for accurate, current instructions. The website does not replace the source documentation." />
             <div className="docs-grid">
-              <a className="doc-card" href={GUIDE_URL} download><TreeIcon id="book" size={25} /><h3>Product guide</h3><p>Overview, platform availability, installation preparation, privacy, and project information in one PDF.</p><span>Download PDF <TreeIcon id="direct-down" size={15} /></span></a>
-              <a className="doc-card" href={INSTALL_DOC_URL} target="_blank" rel="noreferrer"><TreeIcon id="code" size={25} /><h3>Installation docs</h3><p>Read the current guide for dependencies, source builds, release installation, and platform notes.</p><span>Open install guide <TreeIcon id="arrow-right" size={15} /></span></a>
-              <a className="doc-card" href="#technology"><TreeIcon id="shield-security" size={25} /><h3>Privacy model</h3><p>Understand the account-free, telemetry-free, local-first design described by the project.</p><span>Explore technology <TreeIcon id="arrow-right" size={15} /></span></a>
-              <a className="doc-card" href="#preview"><TreeIcon id="lock" size={25} /><h3>Agent control</h3><p>Review the authorization boundary and experimental request-tooling preview.</p><span>View preview <TreeIcon id="arrow-right" size={15} /></span></a>
+              <a className="doc-card" href={GUIDE_URL} download><div className="card-head"><TreeIcon id="book" size={25} /><h3>Product guide</h3></div><p>Overview, platform availability, installation preparation, privacy, and project information in one PDF.</p><span>Download PDF <TreeIcon id="direct-down" size={16} /></span></a>
+              <a className="doc-card" href={INSTALL_DOC_URL} target="_blank" rel="noreferrer"><div className="card-head"><TreeIcon id="code" size={25} /><h3>Installation docs</h3></div><p>Read the current guide for dependencies, source builds, release installation, and platform notes.</p><span>Open install guide <TreeIcon id="arrow-right" size={16} /></span></a>
+              <a className="doc-card" href="#technology"><div className="card-head"><TreeIcon id="shield-security" size={25} /><h3>Privacy model</h3></div><p>Understand the account-free, telemetry-free, local-first design described by the project.</p><span>Explore technology <TreeIcon id="arrow-right" size={16} /></span></a>
+              <a className="doc-card" href="#preview"><div className="card-head"><TreeIcon id="lock" size={25} /><h3>Agent control</h3></div><p>Review the authorization boundary and experimental request-tooling preview.</p><span>View preview <TreeIcon id="arrow-right" size={16} /></span></a>
             </div>
           </div>
         </section>
@@ -214,14 +214,16 @@ function App() {
         <section className="section faq-section" id="faq" aria-labelledby="faq-title">
           <div className="container faq-layout">
             <div>
-              <SectionHeading eyebrow="FAQ" id="faq-title" title="Questions, answered plainly." />
+              <SectionHeading id="faq-title" title="Questions, answered plainly." />
               <p>Need the latest technical detail? The repository README and issue tracker are the authoritative sources.</p>
-              <TextLink href={REPO_URL} external>Open the project repository</TextLink><TextLink href={`${REPO_URL}/issues`} external>Report an issue</TextLink><TextLink href={FEATURES_DOC_URL} external>Feature limitations</TextLink>
+              <div className="faq-layout-links">
+                <TextLink href={REPO_URL} external>Open the project repository</TextLink><TextLink href={`${REPO_URL}/issues`} external>Report an issue</TextLink><TextLink href={FEATURES_DOC_URL} external>Feature limitations</TextLink>
+              </div>
             </div>
             <div className="faq-list">
               {faqs.map((faq, index) => (
                 <details key={faq.question} open={index === 0}>
-                  <summary>{faq.question}</summary>
+                  <summary>{faq.question}<TreeIcon id="arrow-right" size={18} className="faq-mark" /></summary>
                   <p>{faq.answer}</p>
                 </details>
               ))}

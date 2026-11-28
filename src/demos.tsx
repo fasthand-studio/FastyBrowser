@@ -204,7 +204,7 @@ export function SleepDemo() {
   const [sleeping, setSleeping] = useState(false);
   return (
     <div className="demo-card sleep-demo">
-      <div className="demo-copy"><TreeIcon id="moon" size={25} color="#8e6bd8" mode="hover" /><h3>Let quiet tabs rest.</h3><p>See how sleeping tabs can reduce the memory pressure from background pages.</p></div>
+      <div className="demo-copy"><div className="card-head"><TreeIcon id="moon" size={25} color="#8e6bd8" mode="hover" /><h3>Let quiet tabs rest.</h3></div><p>See how sleeping tabs can reduce the memory pressure from background pages.</p></div>
       <div className="sleep-tabs">
         {["Article", "Docs", "Repository", "Reference"].map((name, index) => (
           <div className={sleeping && index > 0 ? "is-sleeping" : ""} key={name}><span className="mock-site-dot" data-site={index} /><span>{name}</span><small>{sleeping && index > 0 ? "Resting" : "Active"}</small>{sleeping && index > 0 ? <TreeIcon id="moon" size={14} color="#8e6bd8" /> : <span className="active-dot" />}</div>
@@ -221,7 +221,7 @@ export function ShieldDemo() {
   const activeCount = Object.values(rules).filter(Boolean).length;
   return (
     <div className="demo-card shield-demo">
-      <div className="demo-copy"><TreeIcon id="shield-tick" size={25} color="#0a9809" mode="hover" /><h3>Block the noise early.</h3><p>Explore the built-in shield categories before a request reaches a site.</p></div>
+      <div className="demo-copy"><div className="card-head"><TreeIcon id="shield-tick" size={25} color="#0a9809" mode="hover" /><h3>Block the noise early.</h3></div><p>Explore the built-in shield categories before a request reaches a site.</p></div>
       <div className="rule-list">
         {([
           ["ads", "Ads"], ["trackers", "Trackers"], ["fingerprinting", "Fingerprinting"],
@@ -239,7 +239,7 @@ export function PipDemo() {
   const [playing, setPlaying] = useState(true);
   return (
     <div className="demo-card pip-demo">
-      <div className="demo-copy"><TreeIcon id="video-play" size={25} color="#5301fe" mode="hover" /><h3>Keep watching, anywhere.</h3><p>A video-only window that stays above your work.</p></div>
+      <div className="demo-copy"><div className="card-head"><TreeIcon id="video-play" size={25} color="#5301fe" mode="hover" /><h3>Keep watching, anywhere.</h3></div><p>A video-only window that stays above your work.</p></div>
       <div className={`pip-demo-player ${playing ? "is-playing" : ""}`}>
         <div className="pip-demo-top"><span><TreeIcon id="video-play" size={14} color="#ededed" dark /> Picture in picture</span><TreeIcon id="more" size={15} color="#ededed" dark /></div>
         <div className="pip-demo-stage"><div className="pip-orb" /><div className="pip-wave">{[1, 2, 3, 4, 5].map((bar) => <i key={bar} />)}</div><button aria-label={playing ? "Pause demo video" : "Play demo video"} onClick={() => setPlaying((value) => !value)}><TreeIcon id={playing ? "pause" : "play"} size={20} color="#ffffff" dark /></button></div>
@@ -258,7 +258,7 @@ export function AuthenticatorDemo() {
   }, [visible]);
   return (
     <div className="demo-card authenticator-demo">
-      <div className="demo-copy"><TreeIcon id="finger-scan" size={25} color="#0a9809" mode="hover" /><h3>One less app to open.</h3><p>Passkeys and one-time codes belong on your computer, not a remote account.</p></div>
+      <div className="demo-copy"><div className="card-head"><TreeIcon id="finger-scan" size={25} color="#0a9809" mode="hover" /><h3>One less app to open.</h3></div><p>Passkeys and one-time codes belong on your computer, not a remote account.</p></div>
       <div className="authenticator-code"><span>FASTY DEMO</span><strong>{visible ? "482 915" : "••• •••"}</strong><button onClick={() => setVisible((value) => !value)}><TreeIcon id={visible ? "eye-slash" : "play"} size={17} color="#5301fe" />{visible ? "Hide demo code" : "Show demo code"}</button></div>
       <div className="authenticator-local"><TreeIcon id="lock" size={16} color="#0a9809" /><span>Demo only · no real secret is stored</span></div>
     </div>

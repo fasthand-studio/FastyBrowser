@@ -94,23 +94,18 @@ export function BrandMark({ size = 32, className = "" }: { size?: number; classN
 }
 
 export function SectionHeading({
-  eyebrow,
   title,
   description,
   dark = false,
-  align = "left",
   id,
 }: {
-  eyebrow: string;
   title: string;
   description?: string;
   dark?: boolean;
-  align?: "left" | "center";
   id?: string;
 }) {
   return (
-    <div className={`section-heading ${dark ? "on-dark" : ""} ${align === "center" ? "is-centered" : ""}`}>
-      <span className="section-eyebrow">{eyebrow}</span>
+    <div className={`section-heading ${dark ? "on-dark" : ""}`}>
       <h2 id={id}>{title}</h2>
       {description ? <p>{description}</p> : null}
     </div>
