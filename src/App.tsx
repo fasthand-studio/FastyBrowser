@@ -4,7 +4,8 @@ import { BrandMark, FeatureStatus, publicUrl, SectionHeading, TextLink, TreeIcon
 import { AuthenticatorDemo, HeroBrowser, PipDemo, ProductPreview, ShieldDemo, SleepDemo } from "./demos";
 import { DownloadPanel } from "./downloads";
 
-const REPO_URL = "https://github.com/fasthand-studio/FastyBrowser";
+const STUDIO_URL = "https://fasthandstudio.asia/";
+const REPO_URL ="https://github.com/fasthand-studio/FastyBrowser";
 const INSTALL_DOC_URL = "https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/install.md";
 const FEATURES_DOC_URL = "https://github.com/fasthand-studio/FastyBrowser/blob/main/docs/features.md";
 const GUIDE_URL = publicUrl("/fasty-product-guide.pdf");
@@ -244,7 +245,7 @@ function App() {
           <div className="footer-top">
             <div className="footer-brand"><a className="site-brand" href="#top"><BrandMark /><span>Fasty <small>Browser</small></span></a><p>A native, private Linux browser from FastHand Studio. This website is a product presentation, not the browser itself.</p></div>
             <div className="footer-column"><strong>Product</strong><a href="#features">Features</a><a href="#preview">Interactive preview</a><a href="#download">Download & install</a></div>
-            <div className="footer-column"><strong>Project</strong><a href="#about">About</a><a href="#technology">Technology</a><a href={REPO_URL} target="_blank" rel="noreferrer">Source code</a></div>
+            <div className="footer-column"><strong>Project</strong><a href="#about">About</a><a href={STUDIO_URL}>FastHand Studio</a><a href="#technology">Technology</a><a href={REPO_URL} target="_blank" rel="noreferrer">Source code</a></div>
             <div className="footer-column"><strong>Resources</strong><a href={GUIDE_URL} download>Product guide</a><a href="#docs">Documentation</a><a href="#faq">FAQ</a></div>
           </div>
           <div className="footer-bottom"><span>Fasty logo and brand assets © 2026 FastHand Studio. Used under the MIT License.</span><span>Website preview · No account · No telemetry</span></div>
