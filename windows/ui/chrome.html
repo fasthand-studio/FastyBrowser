@@ -278,7 +278,8 @@ $('addr').addEventListener('keydown', e => {
   else if (e.key === 'Escape') { closeSuggest(); $('addr').value = S.internal ? '' : S.url; $('addr').blur(); post({ a: 'focuspage' }); }
 });
 $('field').addEventListener('submit', e => { e.preventDefault(); if (sel >= 0 && sugs[sel]) choose(sel); else { const v = $('addr').value; closeSuggest(); post({ a: 'nav', v }); $('addr').blur(); } });
-$('addr').addEventListener('focus', () => { $('addr').select(); switchMode = switchMode; });
+$('addr').readOnly = true; // typing happens in the Spotlight pop-up, like on Linux
+$('field').addEventListener('pointerdown', e => { if (e.target.closest('.fbtn')) return; e.preventDefault(); post({ a: 'spotlight', mode: 'address' }); });
 $('addr').addEventListener('blur', () => { setTimeout(() => { if (document.activeElement !== $('addr')) { closeSuggest(); switchMode = false; $('addr').value = S.internal ? '' : S.url; } }, 120); });
 $('star').onclick = () => post({ a: 'bookmark' });
 $('mic').onclick = () => post({ a: 'voice' });
@@ -288,7 +289,7 @@ $('newtab-l').onclick = $('newtab-t').onclick = () => post({ a: 'newtab' });
 const MENU = [
   [['New Tab', 'newtab', 'Ctrl+T'], ['New Private Tab', 'privatetab', 'Ctrl+Shift+N'], ['Reopen Closed Tab', 'reopen', 'Ctrl+Shift+T']],
   [['History', 'history', 'Ctrl+Y'], ['Bookmarks', 'bookmarks', 'Ctrl+Alt+B'], ['Downloads', 'downloads', 'Ctrl+Shift+J']],
-  [['Voice Search', 'voice', ''], ['Authenticator', 'authenticator', 'Ctrl+Shift+A'], ['Reading Mode', 'reader', 'Ctrl+Shift+R'], ['Find on Page…', 'find', 'Ctrl+F'], ['Print…', 'print', 'Ctrl+P'], ['Web Inspector', 'inspector', 'F12']],
+  [['Voice Search', 'voice', ''], ['Authenticator', 'authenticator', 'Ctrl+Shift+A'], ['Reading Mode', 'reader', 'Ctrl+Shift+R'], ['Hide Something\u2026', 'hide', 'Ctrl+Shift+H'], ['What Is Hidden Here', 'hidden', 'Ctrl+Shift+U'], ['Pause Shield on this site', 'pauseshield', ''], ['Find on Page…', 'find', 'Ctrl+F'], ['Print…', 'print', 'Ctrl+P'], ['Web Inspector', 'inspector', 'F12']],
   [['Tabs Across the Top / Down the Left', 'tabsside', 'Ctrl+Shift+S'], ['Fold Sidebar Away', 'fold', 'Ctrl+S'], ['Keyboard Shortcuts', 'shortcuts', ''], ['Settings', 'settings', 'Ctrl+,']]
 ];
 function openMenu() {
@@ -323,7 +324,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && !$('cover').classLi
 })();
 
 /* keys while the sidebar has focus: send the combination to the app, which owns the shortcut table */
-const FWD = new Set(['ctrl+t','ctrl+shift+t','ctrl+shift+n','ctrl+w','ctrl+l','ctrl+k','ctrl+d','ctrl+y','ctrl+alt+b','ctrl+shift+b','ctrl+shift+a','ctrl+shift+j','ctrl+,','ctrl+r','f5','ctrl+shift+r','ctrl+shift+s','ctrl+s','ctrl+tab','ctrl+shift+tab','alt+arrowleft','alt+arrowright','ctrl+bracketleft','ctrl+bracketright','ctrl+shift+bracketleft','ctrl+shift+bracketright','f11','ctrl+shift+c','ctrl+alt+r','ctrl+f5','ctrl+1','ctrl+2','ctrl+3','ctrl+4','ctrl+5','ctrl+6','ctrl+7','ctrl+8','ctrl+9']);
+const FWD = new Set(['ctrl+t','ctrl+shift+t','ctrl+shift+n','ctrl+w','ctrl+l','ctrl+k','ctrl+d','ctrl+y','ctrl+alt+b','ctrl+shift+b','ctrl+shift+a','ctrl+shift+h','ctrl+shift+u','ctrl+shift+j','ctrl+,','ctrl+r','f5','ctrl+shift+r','ctrl+shift+s','ctrl+s','ctrl+tab','ctrl+shift+tab','alt+arrowleft','alt+arrowright','ctrl+bracketleft','ctrl+bracketright','ctrl+shift+bracketleft','ctrl+shift+bracketright','f11','ctrl+shift+c','ctrl+alt+r','ctrl+f5','ctrl+1','ctrl+2','ctrl+3','ctrl+4','ctrl+5','ctrl+6','ctrl+7','ctrl+8','ctrl+9']);
 addEventListener('keydown', e => {
   const k = /^Bracket/.test(e.code) ? e.code.toLowerCase() : e.key.toLowerCase();
   const c = (e.ctrlKey ? 'ctrl+' : '') + (e.altKey ? 'alt+' : '') + (e.shiftKey ? 'shift+' : '') + k;

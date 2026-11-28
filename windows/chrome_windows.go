@@ -116,9 +116,11 @@ func (a *app) command(name string, m chromeMsg) {
 	case "stop":
 		a.stopLoading()
 	case "newtab":
-		a.newTab(kindInternal, "newtab.html", false)
+		a.showOverlay(overlayParams{Mode: "newtab", Private: false})
 	case "privatetab":
-		a.newTab(kindInternal, "newtab.html?private=1", true)
+		a.showOverlay(overlayParams{Mode: "newtab", Private: true})
+	case "spotlight":
+		a.openSpotlight(m.Mode, false)
 	case "reopen":
 		a.reopenClosed()
 	case "closeactive":
@@ -130,9 +132,17 @@ func (a *app) command(name string, m chromeMsg) {
 	case "downloads":
 		shellOpen(downloadsDir())
 	case "settings":
-		a.openInternal("settings.html", true)
+		a.openSettings("")
 	case "authenticator":
 		a.openInternal("authenticator.html", true)
+	case "hide":
+		a.evalActive("window.__fastyPick&&window.__fastyPick()")
+	case "hidden":
+		a.openSettings("privacy")
+	case "pauseshield":
+		a.pauseShieldHere()
+	case "defaultbrowser":
+		shellOpen("ms-settings:defaultapps")
 	case "shortcuts":
 		a.openInternal("shortcuts.html", true)
 	case "voice":
@@ -210,6 +220,10 @@ func (a *app) shortcut(k string) {
 		a.command("bookmark", chromeMsg{})
 	case "ctrl+shift+j":
 		a.command("downloads", chromeMsg{})
+	case "ctrl+shift+h":
+		a.command("hide", chromeMsg{})
+	case "ctrl+shift+u":
+		a.command("hidden", chromeMsg{})
 	case "ctrl+shift+a":
 		a.command("authenticator", chromeMsg{})
 	case "ctrl+,":
@@ -246,6 +260,14 @@ func (a *app) shortcut(k string) {
 }
 
 func (a *app) focusAddress(mode string) {
+	if mode == "switch" {
+		a.openSpotlight("switch", false)
+		return
+	}
+	a.openSpotlight("address", false)
+	if true {
+		return
+	}
 	if a.chrome == nil || !a.chromeReady {
 		return
 	}
@@ -280,6 +302,7 @@ func (a *app) dragSidebar(widthPx int, live bool) {
 func (a *app) setSetting(fn func(*Settings)) {
 	fn(&a.settings)
 	a.settings = a.settings.Normalize()
+	CustomSearch = a.settings.CustomEngine
 	if err := SaveSettings(a.dataDir, a.settings); err != nil {
 		log.Println("save settings:", err)
 	}
@@ -419,5 +442,5 @@ func (a *app) toggleBookmark() {
 
 // openVoice opens the new-tab page already listening: say the search, it runs when you stop.
 func (a *app) openVoice() {
-	a.newTab(kindInternal, "newtab.html?voice=1", a.active != nil && a.active.private)
+	a.showOverlay(overlayParams{Mode: "newtab", Voice: true, Private: a.active != nil && a.active.private})
 }

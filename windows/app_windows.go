@@ -59,6 +59,8 @@ var (
 	procEmptyClipboard     = user32.NewProc("EmptyClipboard")
 	procSetClipboardData   = user32.NewProc("SetClipboardData")
 	procGetClipboardData   = user32.NewProc("GetClipboardData")
+	procGetCursorPos       = user32.NewProc("GetCursorPos")
+	procScreenToClient     = user32.NewProc("ScreenToClient")
 	procGetModuleHandleW   = kernel32.NewProc("GetModuleHandleW")
 	procGlobalAlloc        = kernel32.NewProc("GlobalAlloc")
 	procGlobalLock         = kernel32.NewProc("GlobalLock")
@@ -103,6 +105,7 @@ const (
 	timerSleep = 2
 	timerSync  = 3
 	timerTest  = 4
+	timerPeek  = 5
 
 	dwmUseDarkMode   = 20
 	dwmCaptionColor  = 35
@@ -303,6 +306,9 @@ type app struct {
 	embedQueue  []*tab
 	voice       *voiceSession
 	auth        *AuthStore
+	ov          *overlay
+	curtain     *Curtain
+	peeking     bool
 	authErr     string
 	closed      []closedTab
 	brushFrame  uintptr
@@ -333,12 +339,23 @@ func (a *app) ensureDirs() error {
 		}
 		a.webviewDir = filepath.Join(local, "FastyBrowser", "WebView2")
 	}
+	// "Clear everything" in Settings leaves web data (cookies, cache) to be deleted here, before any
+	// page process holds it open.
+	if marker := filepath.Join(a.dataDir, "clear-webdata"); fileExists(marker) {
+		_ = os.RemoveAll(a.webviewDir)
+		_ = os.Remove(marker)
+	}
 	for _, d := range []string{a.dataDir, a.webviewDir} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 func (a *app) clientSize() (w, h int32) {
@@ -367,6 +384,8 @@ func run(startURLs []string, selftestBase string) error {
 	a.settings = LoadSettings(a.dataDir)
 	a.bookmarks = LoadBookmarks(a.dataDir)
 	a.history = LoadHistory(a.dataDir)
+	a.curtain = LoadCurtain(a.dataDir)
+	CustomSearch = a.settings.CustomEngine
 	var uerr error
 	if ui, uerr = startUIServer(); uerr != nil {
 		return uerr
@@ -382,7 +401,7 @@ func run(startURLs []string, selftestBase string) error {
 
 	// Lighter background behaviour; Chromium flags that only reduce idle work.
 	os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-		"--disable-background-networking --no-pings --disable-breakpad")
+		a.browserArgs())
 
 	procSetProcessDpiAware.Call(^uintptr(3)) // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (-4)
 
@@ -417,12 +436,14 @@ func run(startURLs []string, selftestBase string) error {
 	procUpdateWindow.Call(hwnd)
 
 	a.startChrome()
+	a.startOverlay()
 	a.restoreOrOpen(startURLs)
 	a.loadExtendedShield()
 
 	procSetTimer.Call(hwnd, timerReady, 25, 0)
 	procSetTimer.Call(hwnd, timerSleep, 30_000, 0)
 	procSetTimer.Call(hwnd, timerSync, 750, 0)
+	procSetTimer.Call(hwnd, timerPeek, 120, 0)
 	if a.selftest != nil {
 		procSetTimer.Call(hwnd, timerTest, 400, 0)
 	}
@@ -481,6 +502,8 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 				a.flushStores()
 			case timerTest:
 				a.selftestTick()
+			case timerPeek:
+				a.checkPeek()
 			}
 			return 0
 		case wmClose:
@@ -498,6 +521,7 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 func (a *app) flushStores() {
 	a.bookmarks.Flush()
 	a.history.Flush()
+	a.curtain.Flush()
 }
 
 func (a *app) shutdown() {
@@ -565,7 +589,11 @@ func (a *app) rects() layoutRects {
 		left = sw
 		r.chrome = winRect{0, 0, sw, h}
 	} else if a.settings.SidebarFolded {
-		r.chromeShown = false
+		if a.peeking { // the folded sidebar slides over the page while the pointer is at the left edge
+			r.chrome = winRect{0, 0, a.px(a.settings.SidebarWidth), h}
+		} else {
+			r.chromeShown = false
+		}
 	}
 	r.page = winRect{left, g, w - g, h - g}
 	return r
@@ -588,8 +616,13 @@ func (a *app) layout() {
 			t.view.Resize()
 		}
 	}
+	if a.ov != nil && a.ov.ready && a.ov.shown {
+		a.ov.view.SetPadding(edge.Rect{})
+		a.ov.view.Resize()
+	}
 	procInvalidateRect.Call(a.hwnd, 0, 1)
 	a.raiseChrome()
+	a.raiseOverlay()
 }
 
 // paintBackground draws the frame colour and the one-pixel hairline around the page card.
@@ -721,4 +754,41 @@ func clipboardGet() string {
 
 func shellOpen(target string) {
 	procShellExecuteW.Call(0, uintptr(unsafe.Pointer(utf16("open"))), uintptr(unsafe.Pointer(utf16(target))), 0, 0, 1)
+}
+
+// browserArgs are the Chromium flags: less idle work always, and the user's choices for smooth
+// scrolling and hardware acceleration (read at start, so they apply next launch).
+func (a *app) browserArgs() string {
+	args := "--disable-background-networking --no-pings --disable-breakpad"
+	if !a.settings.SmoothScroll {
+		args += " --disable-smooth-scrolling"
+	}
+	if !a.settings.HardwareAccel {
+		args += " --disable-gpu"
+	}
+	return args
+}
+
+// checkPeek slides the folded sidebar in while the pointer rests at the window's left edge.
+func (a *app) checkPeek() {
+	if a.settings.TabsSide != "left" || !a.settings.SidebarFolded || a.fullscreen || (a.ov != nil && a.ov.shown) {
+		if a.peeking {
+			a.peeking = false
+			a.layout()
+		}
+		return
+	}
+	var pt struct{ X, Y int32 }
+	procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
+	procScreenToClient.Call(a.hwnd, uintptr(unsafe.Pointer(&pt)))
+	w, h := a.clientSize()
+	inside := pt.X >= 0 && pt.X < w && pt.Y >= 0 && pt.Y < h
+	sw := a.px(a.settings.SidebarWidth)
+	if !a.peeking && inside && pt.X <= a.px(3) {
+		a.peeking = true
+		a.layout()
+	} else if a.peeking && (!inside || pt.X > sw+a.px(14)) {
+		a.peeking = false
+		a.layout()
+	}
 }

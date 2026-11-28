@@ -8,11 +8,11 @@
   window.rpc = (m, p) => new Promise(resolve => { const id = ++seq; pending[id] = resolve; post({ a: 'rpc', id, m, p: p || {} }); });
   window.setTitle = t => { document.title = t; post({ a: 'title', t }); };
   window.fastyPost = post;
-  const FWD = new Set(['ctrl+t','ctrl+shift+t','ctrl+shift+n','ctrl+w','ctrl+l','ctrl+k','ctrl+d','ctrl+y','ctrl+alt+b','ctrl+shift+b','ctrl+shift+a','ctrl+shift+j','ctrl+,','ctrl+r','f5','ctrl+shift+r','ctrl+shift+s','ctrl+s','ctrl+tab','ctrl+shift+tab','alt+arrowleft','alt+arrowright','ctrl+bracketleft','ctrl+bracketright','ctrl+shift+bracketleft','ctrl+shift+bracketright','f11','ctrl+1','ctrl+2','ctrl+3','ctrl+4','ctrl+5','ctrl+6','ctrl+7','ctrl+8','ctrl+9']);
+  const FWD = new Set(['ctrl+t','ctrl+shift+t','ctrl+shift+n','ctrl+w','ctrl+l','ctrl+k','ctrl+d','ctrl+y','ctrl+alt+b','ctrl+shift+b','ctrl+shift+a','ctrl+shift+h','ctrl+shift+u','ctrl+shift+j','ctrl+,','ctrl+r','f5','ctrl+shift+r','ctrl+shift+s','ctrl+s','ctrl+tab','ctrl+shift+tab','alt+arrowleft','alt+arrowright','ctrl+bracketleft','ctrl+bracketright','ctrl+shift+bracketleft','ctrl+shift+bracketright','f11','ctrl+1','ctrl+2','ctrl+3','ctrl+4','ctrl+5','ctrl+6','ctrl+7','ctrl+8','ctrl+9']);
   addEventListener('keydown', e => {
     const k = /^Bracket/.test(e.code) ? e.code.toLowerCase() : e.key.toLowerCase();
     const c = (e.ctrlKey ? 'ctrl+' : '') + (e.altKey ? 'alt+' : '') + (e.shiftKey ? 'shift+' : '') + k;
-    if (FWD.has(c)) { e.preventDefault(); post({ a: 'key', k: c }); }
+    if (!window.__noFwd && FWD.has(c)) { e.preventDefault(); post({ a: 'key', k: c }); }
   });
   window.icon = {
     search: '<svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg>',

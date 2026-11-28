@@ -345,6 +345,7 @@ func (a *app) pollReady() {
 		a.chrome.Navigate(ui.URL("chrome.html?t=" + a.themeName()))
 		a.layout()
 	}
+	a.setupOverlay()
 	for _, t := range a.tabs {
 		if t.ready || t.view.GetController() == nil {
 			continue
@@ -474,7 +475,14 @@ func (a *app) onTabMessage(t *tab, raw string, src string) {
 		if t == a.active {
 			a.setWindowTitle()
 		}
+		a.applyVeils(t)
 		a.syncChrome()
+	case m.A == "veil" && t.kind == kindPage:
+		if a.curtain.Hide(siteHost(t.url), m.V, m.T) {
+			a.curtain.Flush()
+			a.applyVeils(t)
+			a.toast("Hidden. Menu, What Is Hidden Here, to bring it back.")
+		}
 	case m.A == "loading" && t.kind == kindPage:
 		t.loading = m.On
 		a.syncChrome()
@@ -503,7 +511,7 @@ func (a *app) onTabMessage(t *tab, raw string, src string) {
 			log.Println("page:", m.V)
 		}
 	case m.A == "rpc" && internal:
-		a.handleRPC(t, m)
+		a.handleRPC(a.tabSink(t), m)
 	}
 }
 
@@ -569,7 +577,7 @@ func (a *app) navigate(t *tab, input string) {
 
 // onResource answers blocked requests with an empty 403 so the page moves on at once.
 func (a *app) onResource(t *tab, req *edge.ICoreWebView2WebResourceRequest, args *edge.ICoreWebView2WebResourceRequestedEventArgs) {
-	if !a.settings.Shield || a.quitting {
+	if !a.settings.Shield || a.quitting || a.shieldPausedFor(t) {
 		return
 	}
 	uri, err := req.GetUri()
