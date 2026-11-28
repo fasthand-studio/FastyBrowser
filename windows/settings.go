@@ -15,6 +15,12 @@ type Settings struct {
 	ExtendedShield bool   `json:"extendedShield"`
 	SleepMinutes   int    `json:"sleepMinutes"`
 	RestoreSession bool   `json:"restoreSession"`
+	// Same choices as the Linux build.
+	Appearance    string `json:"appearance"` // system | light | dark
+	TabsSide      string `json:"tabsSide"`   // left | top
+	SidebarFolded bool   `json:"sidebarFolded"`
+	SidebarWidth  int    `json:"sidebarWidth"`
+	CleanLinks    bool   `json:"cleanLinks"`
 }
 
 func DefaultSettings() Settings {
@@ -25,6 +31,10 @@ func DefaultSettings() Settings {
 		ExtendedShield: true,
 		SleepMinutes:   5, // same default as the Linux build
 		RestoreSession: true,
+		Appearance:     "system",
+		TabsSide:       "left",
+		SidebarWidth:   248, // same as Linux
+		CleanLinks:     true,
 	}
 }
 
@@ -32,6 +42,20 @@ func DefaultSettings() Settings {
 func (s Settings) Normalize() Settings {
 	if _, ok := searchEngines[s.SearchEngine]; !ok {
 		s.SearchEngine = "duckduckgo"
+	}
+	switch s.Appearance {
+	case "light", "dark", "system":
+	default:
+		s.Appearance = "system"
+	}
+	if s.TabsSide != "top" {
+		s.TabsSide = "left"
+	}
+	if s.SidebarWidth < 180 {
+		s.SidebarWidth = 180
+	}
+	if s.SidebarWidth > 420 {
+		s.SidebarWidth = 420
 	}
 	if s.SleepMinutes < 0 {
 		s.SleepMinutes = 0
@@ -89,6 +113,7 @@ func writeFileAtomic(path string, data []byte) error {
 // Session is the list of page URLs open at exit.
 type Session struct {
 	URLs   []string `json:"urls"`
+	Pinned []bool   `json:"pinned,omitempty"`
 	Active int      `json:"active"`
 }
 
