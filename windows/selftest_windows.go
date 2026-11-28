@@ -31,7 +31,7 @@ type selfTest struct {
 	did     bool
 	fails   int
 	base    string
-	flags   map[string]string // facts reported by the browser's own pages
+	flags   map[string]string // facts reported by the browser's own pages and by the steps
 }
 
 const stPageA = `<!doctype html><title>Alpha</title><h1>Alpha</h1>
@@ -72,6 +72,18 @@ func startSelfTestServer() (string, error) {
 	return fmt.Sprintf("http://127.0.0.1:%d", port), nil
 }
 
+// rpcCall runs a call from the glass overlay the way the page would.
+func (a *app) rpcCall(method string, params any) {
+	p, _ := json.Marshal(params)
+	a.handleRPC(a.overlaySink(), pageMsg{A: "rpc", M: method, P: p, ID: json.Number("1")})
+}
+
+// probe asks a page a yes/no question; the answer comes back through the tab's loading flag.
+func probe(t *tab, expr string) {
+	t.loading = false
+	t.view.Eval("window.chrome.webview.postMessage(JSON.stringify({a:'loading',on:!!(" + expr + ")}))")
+}
+
 func (a *app) beginSelfTest(base string) {
 	st := &selfTest{base: base, flags: map[string]string{}}
 	a.selftest = st
@@ -94,6 +106,23 @@ func (a *app) beginSelfTest(base string) {
 		}
 		return nil
 	}
+	flag := func(k string) bool { return st.flags[k] == "1" }
+	setFlag := func(k string) { st.flags[k] = "1" }
+	// asks the page once, then waits for its answer
+	ask := func(a *app, t *tab, key, expr string) (answered, yes bool) {
+		if !flag(key + ":asked") {
+			setFlag(key + ":asked")
+			probe(t, expr)
+			st.flags[key+":at"] = time.Now().Format(time.RFC3339Nano)
+			return false, false
+		}
+		at, _ := time.Parse(time.RFC3339Nano, st.flags[key+":at"])
+		if time.Since(at) < 600*time.Millisecond {
+			return false, false
+		}
+		return true, t.loading
+	}
+
 	st.steps = []stStep{
 		{name: "first page loads and reports its title", wait: 15 * time.Second, check: titleIs("Alpha")},
 		{name: "Shield blocks the two ad requests on the page", wait: 8 * time.Second,
@@ -109,21 +138,20 @@ func (a *app) beginSelfTest(base string) {
 		{name: "back goes to the previous page, forward returns", wait: 10 * time.Second,
 			do: func(a *app) { a.goBack() },
 			check: func(a *app) bool {
-				if a.active.title == "Beta" && !st.didForward() {
-					st.setForward()
+				if a.active.title == "Beta" && !flag("fwd") {
+					setFlag("fwd")
 					a.goForward()
 				}
-				return st.didForward() && a.active.title == "Gamma"
+				return flag("fwd") && a.active.title == "Gamma"
 			}},
 		{name: "javascript: input is searched, never run", wait: 3 * time.Second,
 			check: func(a *app) bool {
 				return strings.HasPrefix(ResolveInput("javascript:alert(1)", "duckduckgo"), "https://duckduckgo.com/")
 			}},
-		{name: "Spotlight new tab opens and loads from the app's own server", wait: 10 * time.Second,
-			do: func(a *app) { a.command("newtab", chromeMsg{}) },
+		{name: "Ctrl+T opens the glass Spotlight over a snapshot of the page", wait: 10 * time.Second,
+			do: func(a *app) { a.shortcut("ctrl+t") },
 			check: func(a *app) bool {
-				t := a.active
-				return len(a.tabs) == 3 && t.kind == kindInternal && t.page == "newtab.html" && t.ready && t.title == "New Tab"
+				return a.ov != nil && a.ov.shown && a.ov.mode == "newtab" && ui.ImageCount() == 1
 			}},
 		{name: "suggestions find the open tab and visited pages", wait: 3 * time.Second,
 			check: func(a *app) bool {
@@ -136,6 +164,35 @@ func (a *app) beginSelfTest(base string) {
 				}
 				return len(got) > 1 && got[0].Kind == "search" && seenTab
 			}},
+		{name: "Spotlight Enter opens the page in a new tab and closes the pop-up", wait: 10 * time.Second,
+			do: func(a *app) { a.rpcCall("nav", map[string]any{"v": st.base + "/article", "mode": "newtab"}) },
+			check: func(a *app) bool {
+				return !a.ov.shown && len(a.tabs) == 3 && a.active.title == "Long Read" && ui.ImageCount() == 0
+			}},
+		{name: "reading mode recognises an article", wait: 15 * time.Second,
+			check: func(a *app) bool {
+				t := a.active
+				if t == nil || t.title != "Long Read" {
+					return false
+				}
+				if !t.reading && !flag("reader") {
+					setFlag("reader")
+					time.Sleep(300 * time.Millisecond)
+					a.toggleReader()
+				}
+				return t.reading
+			}},
+		{name: "Spotlight from the address field edits the current tab", wait: 8 * time.Second,
+			do: func(a *app) { a.openSpotlight("address", false) },
+			check: func(a *app) bool {
+				if !a.ov.shown || a.ov.mode != "address" {
+					return false
+				}
+				a.rpcCall("nav", map[string]any{"v": st.base + "/c", "mode": "address"})
+				return true
+			}},
+		{name: "the current tab shows the new address", wait: 10 * time.Second,
+			check: func(a *app) bool { return len(a.tabs) == 3 && a.active.title == "Gamma" && !a.ov.shown }},
 		{name: "bookmark toggles and is remembered", wait: 5 * time.Second,
 			do: func(a *app) { a.activate(tabWith(a, "Alpha")); a.toggleBookmark() },
 			check: func(a *app) bool {
@@ -150,6 +207,13 @@ func (a *app) beginSelfTest(base string) {
 					}
 				}
 				return false
+			}},
+		{name: "importing a bookmarks file adds the new links", wait: 5 * time.Second,
+			do: func(a *app) {
+				a.rpcCall("bookmarks.import", map[string]any{"html": `<DL><DT><A HREF="https://imported.example/one">One</A><DT><A HREF="https://imported.example/two">Two</A></DL>`})
+			},
+			check: func(a *app) bool {
+				return a.bookmarks.Has("https://imported.example/one") && a.bookmarks.Has("https://imported.example/two")
 			}},
 		{name: "Authenticator adds an account, shows a code and keeps the secret encrypted", wait: 12 * time.Second,
 			do: func(a *app) { a.command("authenticator", chromeMsg{}) },
@@ -168,77 +232,172 @@ func (a *app) beginSelfTest(base string) {
 				return len(v) == 1 && len(v[0].Code) == 6 && err == nil && !strings.Contains(string(raw), "JBSWY3DPEHPK3PXP") && len(raw) > 20
 			}},
 		{name: "pinning moves a tab to the front as a tile", wait: 3 * time.Second,
-			do:    func(a *app) { a.togglePin(tabWith(a, "Gamma")) },
-			check: func(a *app) bool { return a.tabs[0].pinned && a.tabs[0].title == "Gamma" }},
-		{name: "private tab has its own profile and is deleted on close", wait: 12 * time.Second,
-			do: func(a *app) { a.command("privatetab", chromeMsg{}) },
+			do:    func(a *app) { a.togglePin(tabWith(a, "Alpha")) },
+			check: func(a *app) bool { return a.tabs[0].pinned && a.tabs[0].title == "Alpha" }},
+		{name: "Ctrl+Shift+N opens a private Spotlight and a private tab from it", wait: 12 * time.Second,
+			do: func(a *app) {
+				a.history.Remove(st.base + "/b") // so a record of /b afterwards could only come from the private tab
+				a.shortcut("ctrl+shift+n")
+			},
 			check: func(a *app) bool {
-				t := a.active
-				if t == nil || !t.private || t.privDir == "" || !t.ready {
+				if !a.ov.shown || a.ov.mode != "newtab" || !a.ov.private {
 					return false
 				}
-				dir := t.privDir
+				a.rpcCall("nav", map[string]any{"v": st.base + "/b", "mode": "newtab", "private": true})
+				return true
+			}},
+		{name: "the private tab keeps no history and is closed", wait: 12 * time.Second,
+			check: func(a *app) bool {
+				t := a.active
+				if t == nil || !t.private || t.title != "Beta" || t.privDir == "" {
+					return false
+				}
+				for _, h := range a.history.Items {
+					if h.Title == "Beta" {
+						return false
+					}
+				}
 				a.closeTab(t)
-				time.Sleep(1500 * time.Millisecond)
-				_, err := os.Stat(dir)
-				return err != nil || true // removal is retried in the background; the profile dir existed and was handed over
+				return true
 			}},
 		{name: "closed tab is reopened with its address", wait: 8 * time.Second,
-			do: func(a *app) { a.closeTab(tabWith(a, "Alpha")) },
+			do: func(a *app) {
+				st.flags["n"] = fmt.Sprint(len(a.tabs))
+				a.closeTab(tabWith(a, "Gamma"))
+			},
 			check: func(a *app) bool {
-				if tabWith(a, "Alpha") == nil && !st.didReopen() {
-					st.setReopen()
+				if !flag("reopen") {
+					setFlag("reopen")
 					a.reopenClosed()
 				}
-				return st.didReopen() && tabWith(a, "Alpha") != nil
+				n := 0
+				for _, t := range a.tabs {
+					if strings.HasSuffix(t.url, "/c") && t.ready {
+						n++
+					}
+				}
+				return st.flags["n"] == fmt.Sprint(len(a.tabs)) && n == 2
 			}},
-		{name: "settings page opens and saving changes the layout (tabs across the top)", wait: 12 * time.Second,
+		{name: "Settings opens as a centered pop-up and saving changes the layout (tabs across the top)", wait: 12 * time.Second,
 			do: func(a *app) { a.command("settings", chromeMsg{}) },
 			check: func(a *app) bool {
-				t := internalTab(a, "settings.html")
-				if t == nil || !t.ready || t.title != "Settings" {
+				if !a.ov.shown || a.ov.mode != "settings" {
 					return false
 				}
 				if a.settings.TabsSide != "top" {
-					m, _ := json.Marshal(map[string]any{"a": "rpc", "id": 99, "m": "settings.set", "p": Settings{SearchEngine: "brave", Shield: true, SleepMinutes: 1, RestoreSession: true, Appearance: "system", TabsSide: "top", SidebarWidth: 248, CleanLinks: true}})
-					a.onTabMessage(t, string(m), ui.base)
+					cur := a.settings
+					cur.TabsSide, cur.SearchEngine = "top", "brave"
+					a.rpcCall("settings.set", cur)
 					return false
 				}
 				r := a.rects()
-				return a.settings.SearchEngine == "brave" && r.chrome.Right > r.chrome.Left && r.chrome.Bottom < 200 && LoadSettings(a.dataDir).TabsSide == "top"
+				return a.settings.SearchEngine == "brave" && r.chrome.Bottom < 200 && LoadSettings(a.dataDir).TabsSide == "top"
 			}},
-		{name: "sidebar layout returns and the sidebar can fold", wait: 5 * time.Second,
-			do: func(a *app) { a.setSetting(func(s *Settings) { s.TabsSide = "left"; s.SidebarFolded = true }) },
+		{name: "custom search address is used for searches", wait: 5 * time.Second,
+			do: func(a *app) {
+				cur := a.settings
+				cur.SearchEngine, cur.CustomEngine = "custom", "https://search.example/?q=%s"
+				a.rpcCall("settings.set", cur)
+			},
 			check: func(a *app) bool {
-				r := a.rects()
-				if !r.chromeShown && a.settings.SidebarFolded {
-					a.setSetting(func(s *Settings) { s.SidebarFolded = false })
-				}
-				return !a.settings.SidebarFolded && a.rects().chrome.Right > 100 && a.rects().page.Left >= a.rects().chrome.Right
+				return a.settings.SearchEngine == "custom" && ResolveInput("two words", a.settings.SearchEngine) == "https://search.example/?q=two+words"
 			}},
-		{name: "reading mode recognises an article", wait: 15 * time.Second,
-			do: func(a *app) { g := tabWith(a, "Gamma"); a.navigate(g, st.base+"/article"); a.activate(g) },
+		{name: "sidebar layout returns, the sidebar folds and peeks at the edge", wait: 5 * time.Second,
+			do: func(a *app) {
+				a.hideOverlay()
+				a.setSetting(func(s *Settings) { s.TabsSide = "left"; s.SearchEngine = "duckduckgo"; s.SidebarFolded = true })
+			},
+			check: func(a *app) bool {
+				if a.rects().chromeShown {
+					return false
+				}
+				a.peeking = true
+				a.layout()
+				ok := a.rects().chromeShown && a.rects().chrome.Right > 100
+				a.peeking = false
+				a.setSetting(func(s *Settings) { s.SidebarFolded = false })
+				return ok && a.rects().chrome.Right > 100 && a.rects().page.Left >= a.rects().chrome.Right
+			}},
+		{name: "voice search opens inside Spotlight and shows the words heard", wait: 20 * time.Second,
+			do: func(a *app) {
+				a.showOverlay(overlayParams{Mode: "newtab", Voice: true})
+				st.flags["voiceAt"] = time.Now().Format(time.RFC3339Nano)
+			},
+			check: func(a *app) bool {
+				at, _ := time.Parse(time.RFC3339Nano, st.flags["voiceAt"])
+				if !flag("voiceSent") && time.Since(at) > 2*time.Second {
+					setFlag("voiceSent")
+					a.voiceTo(a.overlaySink(), voiceEvent{T: "interim", V: "hello"})
+					a.voiceTo(a.overlaySink(), voiceEvent{T: "final", V: "hello world"})
+				}
+				return strings.Contains(st.flags["voice-text"], "hello world")
+			}},
+		{name: "hiding an element hides it on that site and it can be shown again", wait: 14 * time.Second,
+			do: func(a *app) { a.hideOverlay(); a.activate(tabWith(a, "Alpha")) },
 			check: func(a *app) bool {
 				t := a.active
-				if t == nil || t.title != "Long Read" {
+				if t == nil || t.title != "Alpha" {
 					return false
 				}
-				if !t.reading && !st.didReader() {
-					st.setReader()
-					time.Sleep(300 * time.Millisecond)
-					a.toggleReader()
+				if !flag("veil") {
+					setFlag("veil")
+					a.curtain.Hide(siteHost(t.url), "h1", "Alpha heading")
+					a.applyVeils(t)
+					return false
 				}
-				return t.reading
+				answered, yes := ask(a, t, "hidden", "getComputedStyle(document.querySelector('h1')).display==='none'")
+				if answered && yes && !flag("shown") {
+					setFlag("shown")
+					a.rpcCall("veils.show", map[string]any{"host": siteHost(t.url)})
+					delete(st.flags, "hidden:asked")
+					return false
+				}
+				if answered && !yes {
+					return flag("shown") // it came back after "Show again"
+				}
+				return false
 			}},
-		{name: "voice search screen opens with the Dictation Dune animation", wait: 15 * time.Second,
-			do:    func(a *app) { a.newTab(kindInternal, "newtab.html?voice=1&selftest=1", false) },
-			check: func(a *app) bool { return st.flags["voice-ui"] == "open" }},
-		{name: "words from the speech recognizer reach the animation", wait: 10 * time.Second,
+		{name: "the hide-something picker, picture in picture and page zoom are present", wait: 14 * time.Second,
 			do: func(a *app) {
-				a.voiceTo(a.active, voiceEvent{T: "interim", V: "hello"})
-				a.voiceTo(a.active, voiceEvent{T: "final", V: "hello world"})
+				a.setSetting(func(s *Settings) { s.PageZoom = 125 })
+				a.applyVeilsAll()
 			},
-			check: func(a *app) bool { return strings.Contains(st.flags["voice-text"], "hello world") }},
+			check: func(a *app) bool {
+				t := a.active
+				if t == nil || t.title != "Alpha" {
+					return false
+				}
+				answered, yes := ask(a, t, "pick", "typeof window.__fastyPick==='function' && typeof window.__fastyPip==='function' && document.documentElement.style.zoom==='1.25' && document.pictureInPictureEnabled")
+				if answered {
+					a.setSetting(func(s *Settings) { s.PageZoom = 100 })
+					return yes
+				}
+				return false
+			}},
+		{name: "Shield can be paused for one site and the count stops rising", wait: 20 * time.Second,
+			do: func(a *app) {
+				a.activate(tabWith(a, "Alpha"))
+				a.pauseShieldHere()
+				st.flags["count"] = fmt.Sprint(a.shield.Count())
+				a.reloadTab(a.active, false)
+			},
+			check: func(a *app) bool {
+				if len(a.settings.ShieldPaused) != 1 {
+					return false
+				}
+				if !flag("waited") {
+					setFlag("waited")
+					st.flags["waitAt"] = time.Now().Format(time.RFC3339Nano)
+					return false
+				}
+				at, _ := time.Parse(time.RFC3339Nano, st.flags["waitAt"])
+				if time.Since(at) < 4*time.Second {
+					return false
+				}
+				same := st.flags["count"] == fmt.Sprint(a.shield.Count())
+				a.pauseShieldHere() // back on
+				return same && len(a.settings.ShieldPaused) == 0
+			}},
 		{name: "full screen toggles and gives the page the whole window", wait: 5 * time.Second,
 			do: func(a *app) { a.setFullscreen(true) },
 			check: func(a *app) bool {
@@ -272,6 +431,16 @@ func (a *app) beginSelfTest(base string) {
 			}},
 		{name: "a woken tab shows its page again", wait: 12 * time.Second,
 			check: func(a *app) bool { return a.active != nil && !a.active.asleep && a.active.title != "" }},
+		{name: "clearing browsing data empties history and schedules the web data wipe", wait: 5 * time.Second,
+			do: func(a *app) { a.rpcCall("data.clear", map[string]any{}) },
+			check: func(a *app) bool {
+				_, err := os.Stat(filepath.Join(a.dataDir, "clear-webdata"))
+				if err == nil && len(a.history.Items) == 0 {
+					_ = os.Remove(filepath.Join(a.dataDir, "clear-webdata")) // the test profile is thrown away anyway
+					return true
+				}
+				return false
+			}},
 		{name: "session is saved with open and pinned pages", wait: 3 * time.Second,
 			do: func(a *app) { a.saveSession() },
 			check: func(a *app) bool {
@@ -282,7 +451,7 @@ func (a *app) beginSelfTest(base string) {
 				}
 				return err == nil && len(s.URLs) >= 2 && pinned
 			}},
-		{name: "closing every tab leaves one Spotlight tab", wait: 10 * time.Second,
+		{name: "closing every tab leaves one blank page", wait: 10 * time.Second,
 			do: func(a *app) {
 				for len(a.tabs) > 0 {
 					before := len(a.tabs)
@@ -295,13 +464,6 @@ func (a *app) beginSelfTest(base string) {
 			check: func(a *app) bool { return len(a.tabs) == 1 && a.tabs[0].kind == kindInternal }},
 	}
 }
-
-func (st *selfTest) didForward() bool { return st.flags["fwd"] == "1" }
-func (st *selfTest) setForward()      { st.flags["fwd"] = "1" }
-func (st *selfTest) didReopen() bool  { return st.flags["reopen"] == "1" }
-func (st *selfTest) setReopen()       { st.flags["reopen"] = "1" }
-func (st *selfTest) didReader() bool  { return st.flags["reader"] == "1" }
-func (st *selfTest) setReader()       { st.flags["reader"] = "1" }
 
 // selfTestFlag is called when a page of the browser reports a fact during the self-test.
 func (a *app) selfTestFlag(k, v string) {
@@ -337,6 +499,9 @@ func (a *app) selftestTick() {
 		log.Printf("SELFTEST FAIL  %s", s.name)
 		for i, t := range a.tabs {
 			log.Printf("  tab[%d] id=%d kind=%d page=%q ready=%v asleep=%v pinned=%v private=%v active=%v title=%q url=%q", i, t.id, t.kind, t.page, t.ready, t.asleep, t.pinned, t.private, t == a.active, t.title, t.url)
+		}
+		if a.ov != nil {
+			log.Printf("  overlay ready=%v shown=%v mode=%q", a.ov.ready, a.ov.shown, a.ov.mode)
 		}
 		st.fails++
 		st.i++
